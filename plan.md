@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 1——工程与本地运行
-- 当前任务：1.2 精确开发工具链与锁定依赖
-- 最近完成：1.1 计划与文档基线
-- 下一步：安装 Python 3.14.6 与 Node 24.18.0 便携版，创建项目清单和锁文件
+- 当前任务：1.3 后端、配置与数据库基础
+- 最近完成：1.2 精确开发工具链与锁定依赖
+- 下一步：先为配置、数据目录、SQLite PRAGMA、迁移和健康检查编写失败测试
 - 阻塞项：无
 
 ## 执行规则
@@ -58,12 +58,12 @@ git diff --check -- plan.md AGENTS.md 技术选型文档.md
 
 **文件：** `.python-version`、`pyproject.toml`、`uv.lock`、`frontend/package.json`、`frontend/package-lock.json`、`scripts/setup.ps1`
 
-- [ ] 使用 `uv` 安装并固定 Python 3.14.6，记录其自带 `sqlite3.sqlite_version`。
-- [ ] 下载官方 Node 24.18.0 win-x64 便携版到 `%LOCALAPPDATA%\ClearSkyEngineDev\toolchains\`，通过 `CLEAR_SKY_NODE_HOME` 使用，不覆盖现有 Node 22。
-- [ ] 创建后端与前端清单，固定直接依赖、Node engines 和 npm packageManager。
-- [ ] 由工具生成并提交 `uv.lock` 与 `package-lock.json`。
-- [ ] 实现 `scripts/setup.ps1` 的版本检查和 locked 安装。
-- [ ] 运行 setup 并确认 Python、Node、npm、SQLite 和锁文件安装均成功。
+- [x] 使用 `uv` 安装并固定 Python 3.14.6，记录其自带 `sqlite3.sqlite_version`。
+- [x] 下载官方 Node 24.18.0 win-x64 便携版到 `%LOCALAPPDATA%\ClearSkyEngineDev\toolchains\`，通过 `CLEAR_SKY_NODE_HOME` 使用，不覆盖现有 Node 22。
+- [x] 创建后端与前端清单，固定直接依赖、Node engines 和 npm packageManager。
+- [x] 由工具生成并提交 `uv.lock` 与 `package-lock.json`。
+- [x] 实现 `scripts/setup.ps1` 的版本检查和 locked 安装。
+- [x] 运行 setup 并确认 Python、Node、npm、SQLite 和锁文件安装均成功。
 
 **验证：**
 
@@ -162,6 +162,7 @@ uv run pytest backend/tests -q
 | 日期 | 任务 | 命令 | 结果 |
 |---|---|---|---|
 | 2026-07-11 | 1.1 | `rg` 占位符/旧 SQLite 契约检查；`git diff --cached --check` | 未发现占位符或旧硬版本契约；暂存差异无空白错误 |
+| 2026-07-11 | 1.2 | `.\scripts\setup.ps1` | Python 3.14.6、SQLite 3.53.1、Node 24.18.0、npm 11.16.0；`uv sync --locked` 与 `npm ci` 成功，npm 审计 0 漏洞 |
 
 ## 决策记录
 
@@ -169,7 +170,7 @@ uv run pytest backend/tests -q
 |---|---|---|
 | 2026-07-11 | 使用分层滚动计划，任务级验证后勾选并提交 | `plan.md` 保留完整路线图，只展开当前阶段 |
 | 2026-07-11 | 第一版 AI 流水线使用三阶段聚合 | 阶段 4 固定主推演、角色/属性并行、最终汇总和程序裁决 |
-| 2026-07-11 | SQLite 跟随 Python 3.14.6 自带版本 | 不再硬要求 3.53.3；启动、检查和打包记录实际版本 |
+| 2026-07-11 | SQLite 跟随项目锁定的 Python 3.14.6 运行时自带版本 | 不再硬要求 3.53.3；当前 uv 运行时实测为 3.53.1，启动、检查和打包继续记录实际版本 |
 | 2026-07-11 | Node 24.18.0 使用官方便携版 | 不覆盖本机现有 Node 22，通过 `CLEAR_SKY_NODE_HOME` 使用 |
 
 ## 已完成阶段

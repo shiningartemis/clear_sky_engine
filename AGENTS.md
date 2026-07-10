@@ -23,7 +23,7 @@
 - 新依赖必须证明现有标准库和已选依赖无法清晰完成任务，并取得用户同意。
 - 修复放在拥有该不变量的最低公共层，并增加能复现问题的回归测试。
 
-技术基线：Windows 11 x64；Python 3.14.6 + uv；SQLite 使用 Python 3.14.6 自带版本；React 19.2 + TypeScript + Vite；Phaser 4；npm/Node 24；PyInstaller onedir。提交 `.python-version`、`uv.lock`、`package-lock.json`，安装使用锁文件；启动、检查和打包必须记录实际 `sqlite3.sqlite_version`。
+技术基线：Windows 11 x64；Python 3.14.6 + uv；SQLite 使用项目锁定的 Python 3.14.6 运行时自带版本；React 19.2 + TypeScript + Vite；Phaser 4；npm/Node 24；PyInstaller onedir。提交 `.python-version`、`uv.lock`、`package-lock.json`，安装使用锁文件；启动、检查和打包必须记录实际 `sqlite3.sqlite_version`。
 
 ## 3. 不可违反的架构边界
 
