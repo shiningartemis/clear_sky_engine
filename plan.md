@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 2——AI Provider 管理与接入
-- 当前任务：2.4 DeepSeek 专有适配
-- 最近完成：OpenAI-compatible 普通/流式语义、SSE 分片、错误映射、有限重试与取消边界已通过完整检查
-- 下一步：先为 DeepSeek thinking、`reasoning_content`、SSE keep-alive、JSON、Tool Calls、模型预设和官方错误码写失败测试
+- 当前任务：2.5 管理界面与连接测试
+- 最近完成：DeepSeek V4 官方预设、thinking、reasoning、SSE keep-alive、JSON、Tool Calls 与错误码适配已通过离线验证
+- 下一步：先写连接测试 API 及 Provider/Model 管理页的 loading、empty、error、retry、编辑和密钥遮蔽失败测试
 - 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；真实 AI 验证会产生费用，安排在 Provider 实现完成后执行
 
 ## 执行规则
@@ -192,9 +192,9 @@ uv run pytest backend/tests -q
 
 **文件范围：** `backend/src/app/ai/deepseek.py`、`backend/tests/ai/`
 
-- [ ] 先写 DeepSeek `reasoning_content`、thinking、SSE keep-alive、JSON Output、Tool Calls、finish reason 和官方错误响应的失败测试。
-- [ ] 复用 OpenAI-compatible 协议实现 `DeepSeekProvider`，只覆盖 DeepSeek 专有差异。
-- [ ] 提供 `deepseek-v4-pro` 与 `deepseek-v4-flash` 官方预设，不把旧模型别名设为默认值。
+- [x] 先写 DeepSeek `reasoning_content`、thinking、SSE keep-alive、JSON Output、Tool Calls、finish reason 和官方错误响应的失败测试。
+- [x] 复用 OpenAI-compatible 协议实现 `DeepSeekProvider`，只覆盖 DeepSeek 专有差异。
+- [x] 提供 `deepseek-v4-pro` 与 `deepseek-v4-flash` 官方预设，不把旧模型别名设为默认值。
 
 ### 任务 2.5：管理界面与连接测试
 
@@ -248,6 +248,7 @@ uv run pytest -m live_ai -q
 | 2026-07-11 | 2.1 | Provider/Model 聚焦 pytest；`generate-api.ps1 -Check`；`scripts\check.ps1` | 迁移、CRUD、级联、回滚、异常链和 SQL 参数脱敏均通过；OpenAPI 无漂移；Ruff/Pyright/Biome/TypeScript 通过；后端 29 个、前端 7 个测试通过；Vite 构建成功 |
 | 2026-07-11 | 2.2 | `pytest backend/tests/ai/test_contracts.py -q`；Ruff；Pyright；`scripts\check.ps1` | 8 个契约测试通过；统一 DTO、受控 Provider 选项、错误分类、密钥边界和无 fallback 注册表通过；全量静态检查、测试与构建通过 |
 | 2026-07-11 | 2.3 | `pytest backend/tests/ai/test_openai_compatible.py -q`；Ruff；Pyright；`scripts\check.ps1` | 10 个 respx/transport 测试通过；普通/流式文本、reasoning、Tool Calls、JSON、usage、错误映射、有限重试和取消语义一致；全量检查通过 |
+| 2026-07-11 | 2.4 | `pytest backend/tests/ai/test_deepseek.py -q`；Ruff；Pyright；`scripts\check.ps1` | 8 个 DeepSeek 离线测试通过；V4 预设、thinking、reasoning、keep-alive、JSON、Tool Calls、finish reason 和官方错误码映射通过；全量检查通过 |
 
 ## 决策记录
 
