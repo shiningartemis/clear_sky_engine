@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 1——工程与本地运行
-- 当前任务：1.4 前端、OpenAPI 与 Phaser 空壳
-- 最近完成：1.3 后端、配置与数据库基础
-- 下一步：先为 API 状态、应用壳和 GameBridge 生命周期编写失败测试
+- 当前任务：1.5 本地安全启动器与生产静态站点
+- 最近完成：1.4 前端、OpenAPI 与 Phaser 空壳
+- 下一步：先为 loopback Host、同源 Origin、shutdown 令牌、随机端口、静态站点和浏览器启动编写失败测试
 - 阻塞项：无
 
 ## 执行规则
@@ -98,11 +98,11 @@ uv run pytest backend/tests/test_migrations.py -q
 
 **文件范围：** `frontend/src/`、`frontend/index.html`、`frontend/vite.config.ts`
 
-- [ ] 先写 API 状态、应用壳和 `GameBridge` 生命周期的失败测试并确认预期失败。
-- [ ] 实现 React Router 应用壳、CSS Modules、原生 Fetch 健康检查以及 loading/error/backend-unavailable 状态。
-- [ ] 实现 Phaser 4.2 最小场景和可清理的类型化 `GameBridge`。
-- [ ] 从后端 OpenAPI 生成前端 DTO，禁止手工修改生成文件。
-- [ ] 运行 Vitest、Biome、TypeScript 和 Vite build。
+- [x] 先写 API 状态、应用壳和 `GameBridge` 生命周期的失败测试并确认预期失败。
+- [x] 实现 React Router 应用壳、CSS Modules、原生 Fetch 健康检查以及 loading/error/backend-unavailable 状态。
+- [x] 实现 Phaser 4.2 最小场景和可清理的类型化 `GameBridge`。
+- [x] 从后端 OpenAPI 生成前端 DTO，禁止手工修改生成文件。
+- [x] 运行 Vitest、Biome、TypeScript 和 Vite build。
 
 **验证：**
 
@@ -164,6 +164,7 @@ uv run pytest backend/tests -q
 | 2026-07-11 | 1.1 | `rg` 占位符/旧 SQLite 契约检查；`git diff --cached --check` | 未发现占位符或旧硬版本契约；暂存差异无空白错误 |
 | 2026-07-11 | 1.2 | `.\scripts\setup.ps1` | Python 3.14.6、SQLite 3.53.1、Node 24.18.0、npm 11.16.0；`uv sync --locked` 与 `npm ci` 成功，npm 审计 0 漏洞 |
 | 2026-07-11 | 1.3 | `uv run pytest backend/tests -q`；Ruff format/check；Pyright | 10 个测试通过；Ruff 全部通过；Pyright 0 错误、0 警告 |
+| 2026-07-11 | 1.4 | `generate-api.ps1 -Check`；健康 API 测试；Ruff/Pyright；Biome/TypeScript/Vitest/Vite | OpenAPI 无漂移；后端 2 个聚焦测试与前端 7 个测试通过；静态检查 0 错误/警告；Vite 构建成功 |
 
 ## 决策记录
 

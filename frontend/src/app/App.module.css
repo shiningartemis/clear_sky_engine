@@ -1,0 +1,61 @@
+.shell {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 70% 20%, rgb(38 96 140 / 35%), transparent 35%),
+    #08111f;
+  color: #edf6ff;
+}
+
+.gameCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.statusPanel {
+  position: absolute;
+  z-index: 1;
+  top: 32px;
+  left: 32px;
+  width: min(360px, calc(100vw - 64px));
+  padding: 24px;
+  border: 1px solid rgb(159 204 235 / 24%);
+  border-radius: 16px;
+  background: rgb(7 19 34 / 82%);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(16px);
+}
+
+.statusPanel h1 {
+  margin: 8px 0 12px;
+  font-size: 24px;
+}
+
+.statusPanel p {
+  margin: 6px 0;
+  color: #bcd0df;
+}
+
+.statusPanel button {
+  margin-top: 14px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #8fd3ff;
+  color: #092033;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.statusPanel button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
