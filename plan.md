@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 1——工程与本地运行
-- 当前任务：1.3 后端、配置与数据库基础
-- 最近完成：1.2 精确开发工具链与锁定依赖
-- 下一步：先为配置、数据目录、SQLite PRAGMA、迁移和健康检查编写失败测试
+- 当前任务：1.4 前端、OpenAPI 与 Phaser 空壳
+- 最近完成：1.3 后端、配置与数据库基础
+- 下一步：先为 API 状态、应用壳和 GameBridge 生命周期编写失败测试
 - 阻塞项：无
 
 ## 执行规则
@@ -77,12 +77,12 @@ npm --prefix frontend exec -- node --version
 
 **文件范围：** `backend/src/app/`、`backend/tests/`、`backend/migrations/`、`alembic.ini`
 
-- [ ] 先写配置、目录解析、SQLite PRAGMA、Session、空迁移和健康检查的失败测试并确认预期失败。
-- [ ] 实现 FastAPI 应用生命周期、共享 HTTPX AsyncClient、LocalAppData 目录和同步 SQLAlchemy Session。
-- [ ] 实现每连接 `foreign_keys=ON`、`journal_mode=WAL`、`synchronous=FULL`、`busy_timeout=5000`。
-- [ ] 实现 Alembic 接入、迁移前备份入口和空库升级。
-- [ ] 实现 `GET /api/health`，返回应用、数据库和实际 SQLite 运行时状态。
-- [ ] 运行聚焦测试、Ruff 与 Pyright。
+- [x] 先写配置、目录解析、SQLite PRAGMA、Session、空迁移和健康检查的失败测试并确认预期失败。
+- [x] 实现 FastAPI 应用生命周期、共享 HTTPX AsyncClient、LocalAppData 目录和同步 SQLAlchemy Session。
+- [x] 实现每连接 `foreign_keys=ON`、`journal_mode=WAL`、`synchronous=FULL`、`busy_timeout=5000`。
+- [x] 实现 Alembic 接入、迁移前备份入口和空库升级。
+- [x] 实现 `GET /api/health`，返回应用、数据库和实际 SQLite 运行时状态。
+- [x] 运行聚焦测试、Ruff 与 Pyright。
 
 **验证：**
 
@@ -91,7 +91,7 @@ uv run pytest backend/tests -q
 uv run ruff format --check backend
 uv run ruff check backend
 uv run pyright backend/src backend/tests
-uv run alembic upgrade head
+uv run pytest backend/tests/test_migrations.py -q
 ```
 
 ### 任务 1.4：前端、OpenAPI 与 Phaser 空壳
@@ -163,6 +163,7 @@ uv run pytest backend/tests -q
 |---|---|---|---|
 | 2026-07-11 | 1.1 | `rg` 占位符/旧 SQLite 契约检查；`git diff --cached --check` | 未发现占位符或旧硬版本契约；暂存差异无空白错误 |
 | 2026-07-11 | 1.2 | `.\scripts\setup.ps1` | Python 3.14.6、SQLite 3.53.1、Node 24.18.0、npm 11.16.0；`uv sync --locked` 与 `npm ci` 成功，npm 审计 0 漏洞 |
+| 2026-07-11 | 1.3 | `uv run pytest backend/tests -q`；Ruff format/check；Pyright | 10 个测试通过；Ruff 全部通过；Pyright 0 错误、0 警告 |
 
 ## 决策记录
 

@@ -1,0 +1,35 @@
+"""FastAPI 应用工厂。"""
+
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
+import httpx
+from fastapi import FastAPI
+
+from app.api.health import create_health_router
+from app.config import AppConfig
+from app.db.session import create_sqlite_engine
+
+
+def create_app(config: AppConfig | None = None) -> FastAPI:
+    """创建进程内唯一应用；测试可传隔离目录，避免触碰真实用户数据。"""
+
+    resolved_config = config or AppConfig.for_local_app_data()
+    resolved_config.paths.create_directories()
+    engine = create_sqlite_engine(resolved_config.paths.database_path)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        # Provider 必须共享一个连接池；关闭应用时统一释放，禁止每请求创建客户端。
+        async with httpx.AsyncClient() as http_client:
+            app.state.http_client = http_client
+            yield
+        engine.dispose()
+
+    app = FastAPI(
+        title="Clear Sky Engine",
+        version=resolved_config.app_version,
+        lifespan=lifespan,
+    )
+    app.include_router(create_health_router(engine, resolved_config.app_version))
+    return app
