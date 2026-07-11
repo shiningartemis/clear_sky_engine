@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 2——AI Provider 管理与接入
-- 当前任务：2.2 统一 DTO、Provider 协议与注册表
-- 最近完成：Provider/Model 全局迁移、CRUD、级联关系、密钥不回传和底层 SQL 参数脱敏均已通过完整检查
-- 下一步：先为统一请求/响应、错误语义和无状态 `ProviderRegistry` 写失败测试，再实现最小公共协议
+- 当前任务：2.3 OpenAI-compatible 普通与流式接入
+- 最近完成：统一请求/响应 DTO、错误语义、连接密钥边界和无 fallback `ProviderRegistry` 已通过完整检查
+- 下一步：先用 respx 为普通响应、SSE 分块、Tool Calls、JSON Output、usage、取消和错误映射写失败测试
 - 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；真实 AI 验证会产生费用，安排在 Provider 实现完成后执行
 
 ## 执行规则
@@ -175,10 +175,10 @@ uv run pytest backend/tests -q
 
 **文件范围：** `backend/src/app/ai/`、`backend/tests/ai/`
 
-- [ ] 先写统一请求/响应、错误语义和无状态注册表的失败测试。
-- [ ] 定义普通与流式路径共用的消息、文本、reasoning、Tool Calls、finish reason、usage 和受控 `provider_options` DTO。
-- [ ] 实现稳定 Provider 协议与无业务状态 `ProviderRegistry`；所有实现复用应用级 `httpx.AsyncClient`。
-- [ ] 建立统一错误分类和脱敏边界，确保完整 Key、敏感请求和响应不进入异常或日志。
+- [x] 先写统一请求/响应、错误语义和无状态注册表的失败测试。
+- [x] 定义普通与流式路径共用的消息、文本、reasoning、Tool Calls、finish reason、usage 和受控 `provider_options` DTO。
+- [x] 实现稳定 Provider 协议与无业务状态 `ProviderRegistry`；所有实现复用应用级 `httpx.AsyncClient`。
+- [x] 建立统一错误分类和脱敏边界，确保完整 Key、敏感请求和响应不进入异常或日志。
 
 ### 任务 2.3：OpenAI-compatible 普通与流式接入
 
@@ -246,6 +246,7 @@ uv run pytest -m live_ai -q
 | 2026-07-11 | 阶段 1 本机浏览器验收 | 启动 `dist\ClearSkyEngine\ClearSkyEngine.exe` 并采集真实请求日志 | 单一打包进程持续运行；默认浏览器请求首页、CSS、React/Phaser 脚本、健康接口和 favicon，全部返回 200。首次端口探测因系统连接过滤产生假阴性，应用日志与进程证据确认启动正常 |
 | 2026-07-11 | 阶段顺序调整 | 旧阶段引用与占位符 `rg` 检查；`git diff --check -- plan.md 技术选型文档.md AGENTS.md` | 阶段 2/3 旧顺序引用和占位符均未发现；三份文档差异无空白错误；产品范围与验收文档无需修改 |
 | 2026-07-11 | 2.1 | Provider/Model 聚焦 pytest；`generate-api.ps1 -Check`；`scripts\check.ps1` | 迁移、CRUD、级联、回滚、异常链和 SQL 参数脱敏均通过；OpenAPI 无漂移；Ruff/Pyright/Biome/TypeScript 通过；后端 29 个、前端 7 个测试通过；Vite 构建成功 |
+| 2026-07-11 | 2.2 | `pytest backend/tests/ai/test_contracts.py -q`；Ruff；Pyright；`scripts\check.ps1` | 8 个契约测试通过；统一 DTO、受控 Provider 选项、错误分类、密钥边界和无 fallback 注册表通过；全量静态检查、测试与构建通过 |
 
 ## 决策记录
 
