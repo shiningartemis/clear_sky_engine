@@ -4,11 +4,11 @@
 
 ## 当前状态
 
-- 当前阶段：阶段 1——工程与本地运行
-- 当前任务：阶段 1 外部环境验收
+- 当前阶段：阶段 2——AI Provider 管理与接入
+- 当前任务：2.1 Provider/Model 全局持久化与密钥边界
 - 最近完成：开发机上的生产包已真实打开默认浏览器，React/Phaser 资源和健康接口均返回 200
-- 下一步：确认阶段 2 的首个“世界、主分支与唯一主角”纵向切片设计；干净 Windows 验收继续作为阶段 1 外部门禁
-- 阻塞项：当前仅有开发机环境，无法提供干净 Windows 11 x64 验收证据；该外部验收保持未勾选
+- 下一步：先为 `ai_provider`、`ai_model`、密钥不回传和全局 CRUD 写失败测试，再实现迁移与最小 API
+- 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；AI Provider 阶段的真实 API 验证需要用户凭据并会产生费用
 
 ## 执行规则
 
@@ -31,12 +31,12 @@
 ## 五阶段路线图
 
 - [ ] 阶段 1：工程与本地运行——工具链、项目骨架、数据库、前端空壳、本地安全启动器、检查和打包。
-- [ ] 阶段 2：世界、角色与地图——世界/分支、角色、属性、位置、时间、地图与不依赖 AI 的完整配置体验。
-- [ ] 阶段 3：AI Provider——Provider/Model 管理、OpenAI-compatible、DeepSeek、流式协议、脱敏及真实 API 验证。
+- [ ] 阶段 2：AI Provider——Provider/Model 管理、OpenAI-compatible、DeepSeek、流式协议、脱敏及真实 API 验证。
+- [ ] 阶段 3：世界、角色与地图——世界/分支、角色、属性、位置、时间、地图与不依赖 AI 的完整配置体验。
 - [ ] 阶段 4：轮次纵向切片——三阶段流水线、上下文隔离、状态命令、进度、取消/重试/恢复和原子提交。
 - [ ] 阶段 5：历史、快照与发布验收——时间线、快照、分支、Playwright、onedir 和 29 项产品验收。
 
-## 当前阶段：阶段 1——工程与本地运行
+## 阶段 1——工程与本地运行
 
 ### 任务 1.1：计划与文档基线
 
@@ -157,6 +157,82 @@ uv run pytest backend/tests -q
 - [x] PyInstaller onedir 构建成功并完成可用环境内的启动冒烟。
 - [ ] 干净 Windows 11 x64 冒烟有证据，或明确记录为外部环境阻塞。
 
+## 当前阶段：阶段 2——AI Provider 管理与接入
+
+阶段 2 先建立可实际连接 AI 的全局基础，但不提前引入世界、角色或轮次表。Provider 与 Model 全局共享；世界级任务选模在后续世界/轮次阶段接入。
+
+### 任务 2.1：Provider/Model 全局持久化与密钥边界
+
+**文件范围：** `backend/src/app/ai/`、`backend/src/app/api/`、`backend/src/app/db/`、`backend/migrations/`、`backend/tests/`
+
+- [ ] 先写 Provider/Model 数据约束、CRUD、级联关系和 API Key 不回传的失败测试，并确认预期失败。
+- [ ] 使用 Alembic 建立 `ai_provider` 与 `ai_model` 全局表；API Key 可替换或清空，但查询 DTO 只返回 `has_api_key`。
+- [ ] 实现薄 `/api/providers`、`/api/models` 路由以及对应 Service/Store，不把 ORM 模型作为公开 DTO。
+- [ ] 验证空库到 `head`、升级路径、外键约束、事务回滚和查询/日志脱敏。
+- [ ] 重新生成 OpenAPI 类型并确认无手工漂移。
+
+### 任务 2.2：统一 DTO、Provider 协议与注册表
+
+**文件范围：** `backend/src/app/ai/`、`backend/tests/ai/`
+
+- [ ] 先写统一请求/响应、错误语义和无状态注册表的失败测试。
+- [ ] 定义普通与流式路径共用的消息、文本、reasoning、Tool Calls、finish reason、usage 和受控 `provider_options` DTO。
+- [ ] 实现稳定 Provider 协议与无业务状态 `ProviderRegistry`；所有实现复用应用级 `httpx.AsyncClient`。
+- [ ] 建立统一错误分类和脱敏边界，确保完整 Key、敏感请求和响应不进入异常或日志。
+
+### 任务 2.3：OpenAI-compatible 普通与流式接入
+
+**文件范围：** `backend/src/app/ai/openai_compatible.py`、`backend/src/app/ai/streaming.py`、`backend/tests/ai/`
+
+- [ ] 使用 respx 先覆盖普通响应、SSE 分块/空行、Tool Calls、JSON Output、usage、取消和错误映射的失败测试。
+- [ ] 实现 `OpenAICompatibleProvider` 普通调用与流式解析，并保持两条路径的公共语义一致。
+- [ ] 仅在尚未产生有效输出时对临时网络错误有限重试；重试感知取消，不引入额外重试依赖。
+
+### 任务 2.4：DeepSeek 专有适配
+
+**文件范围：** `backend/src/app/ai/deepseek.py`、`backend/tests/ai/`
+
+- [ ] 先写 DeepSeek `reasoning_content`、thinking、SSE keep-alive、JSON Output、Tool Calls、finish reason 和官方错误响应的失败测试。
+- [ ] 复用 OpenAI-compatible 协议实现 `DeepSeekProvider`，只覆盖 DeepSeek 专有差异。
+- [ ] 提供 `deepseek-v4-pro` 与 `deepseek-v4-flash` 官方预设，不把旧模型别名设为默认值。
+
+### 任务 2.5：管理界面与连接测试
+
+**文件范围：** `frontend/src/features/`、`frontend/src/api/`、`backend/src/app/api/`、前后端测试
+
+- [ ] 先写 Provider/Model 列表、编辑、密钥遮蔽、loading/empty/error/retry 和连接测试状态的失败测试。
+- [ ] 实现全局 Provider/Model 管理页面与原生 Fetch 调用，DTO 仅来自生成的 OpenAPI 类型。
+- [ ] 实现连接测试 API；结果只返回能力与脱敏诊断，不记录完整 Prompt、Key 或敏感响应。
+
+### 任务 2.6：离线回归、真实 API 与阶段验收
+
+- [ ] 运行完整 respx 回归、`scripts\generate-api.ps1` 和 `scripts\check.ps1`。
+- [ ] 使用用户提供的凭据运行普通、流式及模型支持能力的 `pytest -m live_ai -q`，记录 provider、模型、结果和 token usage。
+- [ ] 无凭据时明确记录“真实 AI 集成未验证”，保持真实 API 验收未勾选，不以 mock 代替。
+- [ ] 真实与离线验证均通过后完成阶段 2，并展开阶段 3 的世界、角色与地图细化清单。
+
+### 阶段 2 验收
+
+- [ ] 用户可以管理 OpenAI-compatible 与 DeepSeek Provider、模型和连接配置，查询响应与日志不泄露 API Key。
+- [ ] 普通与流式调用的文本、reasoning、Tool Calls、JSON Output、finish reason、usage 和错误语义一致。
+- [ ] respx 离线回归完整通过。
+- [ ] 真实 API 普通、流式及模型支持能力验证完成；无凭据时明确保留为未验证。
+
+**阶段 2 验证命令：**
+
+```powershell
+uv run pytest backend/tests/ai backend/tests/test_provider_api.py backend/tests/test_provider_migrations.py -q
+uv run ruff format --check backend
+uv run ruff check backend
+uv run pyright backend/src backend/tests
+.\scripts\generate-api.ps1 -Check
+npm --prefix frontend run test -- --run
+.\scripts\check.ps1
+
+# 使用用户提供的凭据和真实模型，会产生 API 费用
+uv run pytest -m live_ai -q
+```
+
 ## 验证记录
 
 | 日期 | 任务 | 命令 | 结果 |
@@ -168,6 +244,7 @@ uv run pytest backend/tests -q
 | 2026-07-11 | 1.5 | 后端全量测试/Ruff/Pyright；OpenAPI 与前端回归；真实 Uvicorn loopback TCP 冒烟 | 后端 18 个、前端 7 个测试通过；静态检查与构建通过；随机 loopback 首页返回 200 并正常关闭 |
 | 2026-07-11 | 1.6 | `scripts\check.ps1`；`scripts\dev.ps1 -SmokeTest`；`scripts\build.ps1`；`dist\ClearSkyEngine\ClearSkyEngine.exe --smoke-test` | OpenAPI 无漂移；Ruff/Pyright/Biome/TypeScript 通过；后端 21 个、前端 7 个测试通过；Vite 与 onedir 构建成功；开发环境和打包程序均在 loopback 返回健康接口与首页 200，SQLite 3.53.1，并正常关闭。PyInstaller 警告仅涉及平台或未启用的可选模块 |
 | 2026-07-11 | 阶段 1 本机浏览器验收 | 启动 `dist\ClearSkyEngine\ClearSkyEngine.exe` 并采集真实请求日志 | 单一打包进程持续运行；默认浏览器请求首页、CSS、React/Phaser 脚本、健康接口和 favicon，全部返回 200。首次端口探测因系统连接过滤产生假阴性，应用日志与进程证据确认启动正常 |
+| 2026-07-11 | 阶段顺序调整 | 旧阶段引用与占位符 `rg` 检查；`git diff --check -- plan.md 技术选型文档.md AGENTS.md` | 阶段 2/3 旧顺序引用和占位符均未发现；三份文档差异无空白错误；产品范围与验收文档无需修改 |
 
 ## 决策记录
 
@@ -177,6 +254,7 @@ uv run pytest backend/tests -q
 | 2026-07-11 | 第一版 AI 流水线使用三阶段聚合 | 阶段 4 固定主推演、角色/属性并行、最终汇总和程序裁决 |
 | 2026-07-11 | SQLite 跟随项目锁定的 Python 3.14.6 运行时自带版本 | 不再硬要求 3.53.3；当前 uv 运行时实测为 3.53.1，启动、检查和打包继续记录实际版本 |
 | 2026-07-11 | Node 24.18.0 使用官方便携版 | 不覆盖本机现有 Node 22，通过 `CLEAR_SKY_NODE_HOME` 使用 |
+| 2026-07-11 | 将 AI Provider 调整为阶段 2，世界、角色与地图顺延为阶段 3 | 先交付可管理、可测试且可真实连接的 AI 基础；Provider 保持全局，不依赖世界模型，轮次仍在两者完成后实现 |
 
 ## 已完成阶段
 
