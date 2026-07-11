@@ -6,8 +6,8 @@
 
 - 当前阶段：阶段 1——工程与本地运行
 - 当前任务：阶段 1 外部环境验收
-- 最近完成：1.6 统一脚本、完整检查、onedir 构建和包内启动冒烟均已通过
-- 下一步：在干净 Windows 11 x64 环境验证 onedir 启动与系统默认浏览器打开；通过后完成阶段 1 并展开阶段 2
+- 最近完成：开发机上的生产包已真实打开默认浏览器，React/Phaser 资源和健康接口均返回 200
+- 下一步：确认阶段 2 的首个“世界、主分支与唯一主角”纵向切片设计；干净 Windows 验收继续作为阶段 1 外部门禁
 - 阻塞项：当前仅有开发机环境，无法提供干净 Windows 11 x64 验收证据；该外部验收保持未勾选
 
 ## 执行规则
@@ -152,7 +152,7 @@ uv run pytest backend/tests -q
 ## 阶段 1 验收
 
 - [x] 空数据库可执行全部迁移到 `head`。
-- [ ] 一个 Python 进程可在 loopback 提供 React/Phaser 页面并打开系统默认浏览器。
+- [x] 一个 Python 进程可在 loopback 提供 React/Phaser 页面并打开系统默认浏览器。
 - [x] `scripts/check.ps1` 完整通过。
 - [x] PyInstaller onedir 构建成功并完成可用环境内的启动冒烟。
 - [ ] 干净 Windows 11 x64 冒烟有证据，或明确记录为外部环境阻塞。
@@ -167,6 +167,7 @@ uv run pytest backend/tests -q
 | 2026-07-11 | 1.4 | `generate-api.ps1 -Check`；健康 API 测试；Ruff/Pyright；Biome/TypeScript/Vitest/Vite | OpenAPI 无漂移；后端 2 个聚焦测试与前端 7 个测试通过；静态检查 0 错误/警告；Vite 构建成功 |
 | 2026-07-11 | 1.5 | 后端全量测试/Ruff/Pyright；OpenAPI 与前端回归；真实 Uvicorn loopback TCP 冒烟 | 后端 18 个、前端 7 个测试通过；静态检查与构建通过；随机 loopback 首页返回 200 并正常关闭 |
 | 2026-07-11 | 1.6 | `scripts\check.ps1`；`scripts\dev.ps1 -SmokeTest`；`scripts\build.ps1`；`dist\ClearSkyEngine\ClearSkyEngine.exe --smoke-test` | OpenAPI 无漂移；Ruff/Pyright/Biome/TypeScript 通过；后端 21 个、前端 7 个测试通过；Vite 与 onedir 构建成功；开发环境和打包程序均在 loopback 返回健康接口与首页 200，SQLite 3.53.1，并正常关闭。PyInstaller 警告仅涉及平台或未启用的可选模块 |
+| 2026-07-11 | 阶段 1 本机浏览器验收 | 启动 `dist\ClearSkyEngine\ClearSkyEngine.exe` 并采集真实请求日志 | 单一打包进程持续运行；默认浏览器请求首页、CSS、React/Phaser 脚本、健康接口和 favicon，全部返回 200。首次端口探测因系统连接过滤产生假阴性，应用日志与进程证据确认启动正常 |
 
 ## 决策记录
 
