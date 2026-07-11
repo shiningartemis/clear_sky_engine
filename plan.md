@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 1——工程与本地运行
-- 当前任务：1.5 本地安全启动器与生产静态站点
-- 最近完成：1.4 前端、OpenAPI 与 Phaser 空壳
-- 下一步：先为 loopback Host、同源 Origin、shutdown 令牌、随机端口、静态站点和浏览器启动编写失败测试
+- 当前任务：1.6 统一检查与 PyInstaller onedir
+- 最近完成：1.5 本地安全启动器与生产静态站点
+- 下一步：实现 dev/check/build 根脚本、静态产物复制和 PyInstaller spec，再执行完整阶段验证
 - 阻塞项：无
 
 ## 执行规则
@@ -118,17 +118,17 @@ npm --prefix frontend run build
 
 **文件范围：** `backend/src/app/main.py`、`backend/src/app/launcher.py`、`backend/tests/`
 
-- [ ] 先写 loopback Host、同源 Origin、shutdown 令牌、随机端口、静态站点和浏览器启动的失败测试并确认预期失败。
-- [ ] 实现只绑定 `127.0.0.1` 的随机端口启动器和系统默认浏览器打开逻辑。
-- [ ] 实现生产 Host/Origin 校验和 `POST /api/app/shutdown` 启动期随机令牌。
-- [ ] 提供前端静态构建与 SPA fallback；生产环境不启用宽松 CORS。
-- [ ] 运行后端安全测试和本地启动冒烟测试。
+- [x] 先写 loopback Host、同源 Origin、shutdown 令牌、随机端口、静态站点和浏览器启动的失败测试并确认预期失败。
+- [x] 实现只绑定 `127.0.0.1` 的随机端口启动器和系统默认浏览器打开逻辑。
+- [x] 实现生产 Host/Origin 校验和 `POST /api/app/shutdown` 启动期随机令牌。
+- [x] 提供前端静态构建与 SPA fallback；生产环境不启用宽松 CORS。
+- [x] 运行后端安全测试和本地启动冒烟测试。
 
 **验证：**
 
 ```powershell
 uv run pytest backend/tests -q
-.\scripts\dev.ps1
+# 另执行隔离临时目录中的真实 Uvicorn loopback TCP 首页请求与协作式关闭冒烟
 ```
 
 ### 任务 1.6：统一检查与 PyInstaller onedir
@@ -165,6 +165,7 @@ uv run pytest backend/tests -q
 | 2026-07-11 | 1.2 | `.\scripts\setup.ps1` | Python 3.14.6、SQLite 3.53.1、Node 24.18.0、npm 11.16.0；`uv sync --locked` 与 `npm ci` 成功，npm 审计 0 漏洞 |
 | 2026-07-11 | 1.3 | `uv run pytest backend/tests -q`；Ruff format/check；Pyright | 10 个测试通过；Ruff 全部通过；Pyright 0 错误、0 警告 |
 | 2026-07-11 | 1.4 | `generate-api.ps1 -Check`；健康 API 测试；Ruff/Pyright；Biome/TypeScript/Vitest/Vite | OpenAPI 无漂移；后端 2 个聚焦测试与前端 7 个测试通过；静态检查 0 错误/警告；Vite 构建成功 |
+| 2026-07-11 | 1.5 | 后端全量测试/Ruff/Pyright；OpenAPI 与前端回归；真实 Uvicorn loopback TCP 冒烟 | 后端 18 个、前端 7 个测试通过；静态检查与构建通过；随机 loopback 首页返回 200 并正常关闭 |
 
 ## 决策记录
 
