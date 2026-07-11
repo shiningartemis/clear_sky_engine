@@ -5,7 +5,13 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.config import AppConfig
-from app.launcher import build_server_config, open_browser, prepare_database, select_loopback_port
+from app.launcher import (
+    build_server_config,
+    open_browser,
+    parse_arguments,
+    prepare_database,
+    select_loopback_port,
+)
 
 
 def test_select_loopback_port_returns_an_available_port() -> None:
@@ -33,6 +39,11 @@ def test_open_browser_uses_the_current_loopback_origin() -> None:
 
     assert result is True
     assert opened_urls == ["http://127.0.0.1:43127/"]
+
+
+def test_parse_arguments_supports_packaged_smoke_mode() -> None:
+    assert parse_arguments([]).smoke_test is False
+    assert parse_arguments(["--smoke-test"]).smoke_test is True
 
 
 def test_prepare_database_backs_up_before_upgrading(tmp_path: Path) -> None:

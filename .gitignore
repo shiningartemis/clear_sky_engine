@@ -13,7 +13,6 @@ backend/src/app/static/
 
 build/
 dist/
-*.spec
 
 .coverage
 htmlcov/

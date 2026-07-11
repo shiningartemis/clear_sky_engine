@@ -1,14 +1,18 @@
 """Windows 本地生产启动器。"""
 
+import argparse
 import secrets
 import socket
 import sqlite3
+import sys
 import threading
 import time
 import webbrowser
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
+import httpx
 import uvicorn
 from fastapi import FastAPI
 from pydantic import SecretStr
@@ -16,11 +20,29 @@ from pydantic import SecretStr
 from app.config import AppConfig
 from app.db.migrations import backup_database, upgrade_database
 from app.main import create_app
+from app.resources import resource_root
 from app.security import LocalSecurity
 
 BackupFunction = Callable[[Path, Path], Path | None]
 UpgradeFunction = Callable[[Path, Path], None]
 BrowserOpener = Callable[[str], bool]
+
+
+class LauncherArguments(argparse.Namespace):
+    smoke_test: bool = False
+
+
+def parse_arguments(arguments: Sequence[str]) -> LauncherArguments:
+    parser = argparse.ArgumentParser(prog="ClearSkyEngine")
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help=(
+            "Start with temporary data, verify loopback health, and exit without opening a browser."
+        ),
+    )
+    parsed = parser.parse_args(arguments, namespace=LauncherArguments())
+    return parsed
 
 
 def select_loopback_port() -> int:
@@ -51,21 +73,20 @@ def prepare_database(
 
     config.paths.create_directories()
     backup(config.paths.database_path, config.paths.backups_dir)
-    alembic_ini_path = Path(__file__).parents[3] / "alembic.ini"
+    alembic_ini_path = resource_root() / "alembic.ini"
     upgrade(config.paths.database_path, alembic_ini_path)
 
 
-def run() -> None:
-    """启动一个本地服务线程并由主线程协调浏览器与安全退出。"""
+def _run_application(config: AppConfig, *, smoke_test: bool) -> None:
+    """启动服务线程，并由主线程协调浏览器、自检与安全退出。"""
 
-    config = AppConfig.for_local_app_data()
     prepare_database(config)
     print(f"SQLite {sqlite3.sqlite_version}")
 
     port = select_loopback_port()
     security = LocalSecurity(port=port, shutdown_token=SecretStr(secrets.token_urlsafe(32)))
     shutdown_requested = threading.Event()
-    static_dir = Path(__file__).parent / "static"
+    static_dir = resource_root() / "backend" / "src" / "app" / "static"
     app = create_app(
         config,
         security=security,
@@ -85,7 +106,16 @@ def run() -> None:
 
         if not server.started:
             raise RuntimeError("Local server stopped before startup completed.")
-        open_browser(port)
+        if smoke_test:
+            health_response = httpx.get(f"{security.origin}/api/health", timeout=5)
+            health_response.raise_for_status()
+            page_response = httpx.get(f"{security.origin}/", timeout=5)
+            page_response.raise_for_status()
+            if "<title>Clear Sky Engine</title>" not in page_response.text:
+                raise RuntimeError("Packaged static page did not match the expected application.")
+            shutdown_requested.set()
+        else:
+            open_browser(port)
 
         while server_thread.is_alive():
             if shutdown_requested.wait(0.1):
@@ -96,5 +126,23 @@ def run() -> None:
         server_thread.join(timeout=10)
 
 
+def run(*, smoke_test: bool = False) -> None:
+    """冒烟模式隔离全部数据；普通模式只使用 LocalAppData。"""
+
+    if smoke_test:
+        with TemporaryDirectory(prefix="clear-sky-package-smoke-") as temporary_directory:
+            _run_application(
+                AppConfig.for_local_app_data(Path(temporary_directory)),
+                smoke_test=True,
+            )
+        return
+    _run_application(AppConfig.for_local_app_data(), smoke_test=False)
+
+
+def main(arguments: Sequence[str] | None = None) -> None:
+    parsed_arguments = parse_arguments(sys.argv[1:] if arguments is None else arguments)
+    run(smoke_test=parsed_arguments.smoke_test)
+
+
 if __name__ == "__main__":
-    run()
+    main()
