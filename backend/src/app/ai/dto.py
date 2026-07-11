@@ -19,6 +19,14 @@ class ToolCall(BaseModel):
     index: int | None = Field(default=None, ge=0)
 
 
+class ToolCallDelta(BaseModel):
+    index: int = Field(ge=0)
+    id: str | None = None
+    type: Literal["function"] | None = None
+    name_delta: str = ""
+    arguments_delta: str = ""
+
+
 class FunctionDefinition(BaseModel):
     name: Annotated[str, Field(min_length=1, max_length=128)]
     description: str | None = None
@@ -97,5 +105,5 @@ class ChatStreamEvent(BaseModel):
     kind: Literal["text_delta", "reasoning_delta", "tool_call_delta", "completed"]
     text_delta: str | None = None
     reasoning_delta: str | None = None
-    tool_calls: list[ToolCall] = Field(default_factory=lambda: list[ToolCall]())
+    tool_call_deltas: list[ToolCallDelta] = Field(default_factory=lambda: list[ToolCallDelta]())
     response: ChatResponse | None = None
