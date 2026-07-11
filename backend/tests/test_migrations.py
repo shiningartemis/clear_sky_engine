@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 
 from app.db.migrations import backup_database, upgrade_database
@@ -36,5 +38,25 @@ def test_empty_database_upgrades_to_alembic_head(tmp_path: Path) -> None:
     assert "alembic_version" in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0001_initial"
+            "0002_ai_providers"
+        )
+
+
+def test_existing_initial_database_upgrades_to_provider_schema(tmp_path: Path) -> None:
+    database_path = tmp_path / "app.db"
+    alembic_ini = Path(__file__).parents[2] / "alembic.ini"
+    alembic_config = Config(str(alembic_ini))
+    alembic_config.set_main_option(
+        "script_location", str(alembic_ini.parent / "backend" / "migrations")
+    )
+    alembic_config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    command.upgrade(alembic_config, "0001_initial")
+
+    upgrade_database(database_path, alembic_ini)
+
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    assert {"ai_provider", "ai_model"}.issubset(inspect(engine).get_table_names())
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
+            "0002_ai_providers"
         )

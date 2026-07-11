@@ -9,10 +9,12 @@ import httpx
 from fastapi import FastAPI
 from pydantic import SecretStr
 
+from app.ai.service import AiSettingsService
 from app.api.application import create_application_router
 from app.api.health import create_health_router
+from app.api.providers import create_provider_router
 from app.config import AppConfig
-from app.db.session import create_sqlite_engine
+from app.db.session import create_session_factory, create_sqlite_engine
 from app.security import LocalSecurity, LocalSecurityMiddleware
 from app.static_site import configure_static_site
 
@@ -33,6 +35,7 @@ def create_app(
     resolved_config = config or AppConfig.for_local_app_data()
     resolved_config.paths.create_directories()
     engine = create_sqlite_engine(resolved_config.paths.database_path)
+    ai_settings_service = AiSettingsService(create_session_factory(engine))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
@@ -48,6 +51,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.include_router(create_health_router(engine, resolved_config.app_version))
+    app.include_router(create_provider_router(ai_settings_service))
     shutdown_token = security.shutdown_token if security else SecretStr(secrets.token_urlsafe(32))
     app.include_router(create_application_router(shutdown_token, shutdown_callback))
     if static_dir is not None:

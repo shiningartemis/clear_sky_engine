@@ -32,3 +32,12 @@ def test_session_factory_uses_short_expiring_sessions(tmp_path: Path) -> None:
     with session_factory() as session:
         assert session.execute(text("SELECT 1")).scalar_one() == 1
         assert session.expire_on_commit is True
+
+
+def test_sqlite_engine_hides_query_parameters(tmp_path: Path) -> None:
+    paths = AppPaths.from_local_app_data(tmp_path)
+
+    engine = create_sqlite_engine(paths.database_path)
+
+    # 密钥会作为 SQL 参数写入，底层日志与异常必须统一隐藏全部参数。
+    assert engine.hide_parameters is True

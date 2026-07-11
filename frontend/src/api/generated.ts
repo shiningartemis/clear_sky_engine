@@ -38,6 +38,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Models */
+        get: operations["_list_models_api_models_get"];
+        put?: never;
+        /** Create Model */
+        post: operations["_create_model_api_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Model */
+        get: operations["_get_model_api_models__model_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Model */
+        delete: operations["_delete_model_api_models__model_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Model */
+        patch: operations["_update_model_api_models__model_id__patch"];
+        trace?: never;
+    };
+    "/api/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Providers */
+        get: operations["_list_providers_api_providers_get"];
+        put?: never;
+        /** Create Provider */
+        post: operations["_create_provider_api_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/providers/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Provider */
+        get: operations["_get_provider_api_providers__provider_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Provider */
+        delete: operations["_delete_provider_api_providers__provider_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Provider */
+        patch: operations["_update_provider_api_providers__provider_id__patch"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -63,6 +137,151 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        JsonValue: unknown;
+        /** ModelCreate */
+        ModelCreate: {
+            /** Capabilities */
+            capabilities?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Defaults */
+            defaults?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Provider Id */
+            provider_id: number;
+            /** Remote Model */
+            remote_model: string;
+        };
+        /** ModelResponse */
+        ModelResponse: {
+            /** Capabilities */
+            capabilities: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Defaults */
+            defaults: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Display Name */
+            display_name: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Id */
+            id: number;
+            /** Provider Id */
+            provider_id: number;
+            /** Remote Model */
+            remote_model: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ModelUpdate */
+        ModelUpdate: {
+            /** Capabilities */
+            capabilities?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Defaults */
+            defaults?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Provider Id */
+            provider_id?: number | null;
+            /** Remote Model */
+            remote_model?: string | null;
+        };
+        /** ProviderCreate */
+        ProviderCreate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Extra */
+            extra?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Name */
+            name: string;
+            /**
+             * Provider Type
+             * @enum {string}
+             */
+            provider_type: "openai_compatible" | "deepseek";
+        };
+        /** ProviderResponse */
+        ProviderResponse: {
+            /** Base Url */
+            base_url: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Extra */
+            extra: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Has Api Key */
+            has_api_key: boolean;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Provider Type
+             * @enum {string}
+             */
+            provider_type: "openai_compatible" | "deepseek";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ProviderUpdate */
+        ProviderUpdate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Extra */
+            extra?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /** Name */
+            name?: string | null;
+            /** Provider Type */
+            provider_type?: ("openai_compatible" | "deepseek") | null;
         };
         /** ShutdownResponse */
         ShutdownResponse: {
@@ -141,6 +360,313 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    _list_models_api_models_get: {
+        parameters: {
+            query?: {
+                provider_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _create_model_api_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _get_model_api_models__model_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _delete_model_api_models__model_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _update_model_api_models__model_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _list_providers_api_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderResponse"][];
+                };
+            };
+        };
+    };
+    _create_provider_api_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _get_provider_api_providers__provider_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _delete_provider_api_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _update_provider_api_providers__provider_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

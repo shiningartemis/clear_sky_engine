@@ -5,10 +5,10 @@
 ## 当前状态
 
 - 当前阶段：阶段 2——AI Provider 管理与接入
-- 当前任务：2.1 Provider/Model 全局持久化与密钥边界
-- 最近完成：开发机上的生产包已真实打开默认浏览器，React/Phaser 资源和健康接口均返回 200
-- 下一步：先为 `ai_provider`、`ai_model`、密钥不回传和全局 CRUD 写失败测试，再实现迁移与最小 API
-- 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；AI Provider 阶段的真实 API 验证需要用户凭据并会产生费用
+- 当前任务：2.2 统一 DTO、Provider 协议与注册表
+- 最近完成：Provider/Model 全局迁移、CRUD、级联关系、密钥不回传和底层 SQL 参数脱敏均已通过完整检查
+- 下一步：先为统一请求/响应、错误语义和无状态 `ProviderRegistry` 写失败测试，再实现最小公共协议
+- 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；真实 AI 验证会产生费用，安排在 Provider 实现完成后执行
 
 ## 执行规则
 
@@ -165,11 +165,11 @@ uv run pytest backend/tests -q
 
 **文件范围：** `backend/src/app/ai/`、`backend/src/app/api/`、`backend/src/app/db/`、`backend/migrations/`、`backend/tests/`
 
-- [ ] 先写 Provider/Model 数据约束、CRUD、级联关系和 API Key 不回传的失败测试，并确认预期失败。
-- [ ] 使用 Alembic 建立 `ai_provider` 与 `ai_model` 全局表；API Key 可替换或清空，但查询 DTO 只返回 `has_api_key`。
-- [ ] 实现薄 `/api/providers`、`/api/models` 路由以及对应 Service/Store，不把 ORM 模型作为公开 DTO。
-- [ ] 验证空库到 `head`、升级路径、外键约束、事务回滚和查询/日志脱敏。
-- [ ] 重新生成 OpenAPI 类型并确认无手工漂移。
+- [x] 先写 Provider/Model 数据约束、CRUD、级联关系和 API Key 不回传的失败测试，并确认预期失败。
+- [x] 使用 Alembic 建立 `ai_provider` 与 `ai_model` 全局表；API Key 可替换或清空，但查询 DTO 只返回 `has_api_key`。
+- [x] 实现薄 `/api/providers`、`/api/models` 路由以及对应 Service/Store，不把 ORM 模型作为公开 DTO。
+- [x] 验证空库到 `head`、升级路径、外键约束、事务回滚和查询/日志脱敏。
+- [x] 重新生成 OpenAPI 类型并确认无手工漂移。
 
 ### 任务 2.2：统一 DTO、Provider 协议与注册表
 
@@ -245,6 +245,7 @@ uv run pytest -m live_ai -q
 | 2026-07-11 | 1.6 | `scripts\check.ps1`；`scripts\dev.ps1 -SmokeTest`；`scripts\build.ps1`；`dist\ClearSkyEngine\ClearSkyEngine.exe --smoke-test` | OpenAPI 无漂移；Ruff/Pyright/Biome/TypeScript 通过；后端 21 个、前端 7 个测试通过；Vite 与 onedir 构建成功；开发环境和打包程序均在 loopback 返回健康接口与首页 200，SQLite 3.53.1，并正常关闭。PyInstaller 警告仅涉及平台或未启用的可选模块 |
 | 2026-07-11 | 阶段 1 本机浏览器验收 | 启动 `dist\ClearSkyEngine\ClearSkyEngine.exe` 并采集真实请求日志 | 单一打包进程持续运行；默认浏览器请求首页、CSS、React/Phaser 脚本、健康接口和 favicon，全部返回 200。首次端口探测因系统连接过滤产生假阴性，应用日志与进程证据确认启动正常 |
 | 2026-07-11 | 阶段顺序调整 | 旧阶段引用与占位符 `rg` 检查；`git diff --check -- plan.md 技术选型文档.md AGENTS.md` | 阶段 2/3 旧顺序引用和占位符均未发现；三份文档差异无空白错误；产品范围与验收文档无需修改 |
+| 2026-07-11 | 2.1 | Provider/Model 聚焦 pytest；`generate-api.ps1 -Check`；`scripts\check.ps1` | 迁移、CRUD、级联、回滚、异常链和 SQL 参数脱敏均通过；OpenAPI 无漂移；Ruff/Pyright/Biome/TypeScript 通过；后端 29 个、前端 7 个测试通过；Vite 构建成功 |
 
 ## 决策记录
 

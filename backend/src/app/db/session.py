@@ -28,7 +28,11 @@ def create_sqlite_engine(database_path: Path) -> Engine:
     """创建只用于本地短事务的同步 SQLite Engine。"""
 
     database_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    # API Key 会作为 SQL 参数持久化；即使未来启用 SQL 日志也不得输出参数值。
+    engine = create_engine(
+        f"sqlite:///{database_path.as_posix()}",
+        hide_parameters=True,
+    )
     event.listen(engine, "connect", _configure_sqlite_connection)
     return engine
 
