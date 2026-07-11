@@ -9,6 +9,9 @@ import httpx
 from fastapi import FastAPI
 from pydantic import SecretStr
 
+from app.ai.contracts import ProviderRegistry
+from app.ai.deepseek import DeepSeekProvider
+from app.ai.openai_compatible import OpenAICompatibleProvider
 from app.ai.service import AiSettingsService
 from app.api.application import create_application_router
 from app.api.health import create_health_router
@@ -36,13 +39,24 @@ def create_app(
     resolved_config.paths.create_directories()
     engine = create_sqlite_engine(resolved_config.paths.database_path)
     ai_settings_service = AiSettingsService(create_session_factory(engine))
+    provider_registry: ProviderRegistry | None = None
+
+    def get_provider_registry() -> ProviderRegistry:
+        if provider_registry is None:
+            raise RuntimeError("ProviderRegistry 尚未初始化")
+        return provider_registry
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        nonlocal provider_registry
         # Provider 必须共享一个连接池；关闭应用时统一释放，禁止每请求创建客户端。
         async with httpx.AsyncClient() as http_client:
             app.state.http_client = http_client
+            provider_registry = ProviderRegistry(
+                [OpenAICompatibleProvider(http_client), DeepSeekProvider(http_client)]
+            )
             yield
+            provider_registry = None
         engine.dispose()
 
     app = FastAPI(
@@ -51,7 +65,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.include_router(create_health_router(engine, resolved_config.app_version))
-    app.include_router(create_provider_router(ai_settings_service))
+    app.include_router(create_provider_router(ai_settings_service, get_provider_registry))
     shutdown_token = security.shutdown_token if security else SecretStr(secrets.token_urlsafe(32))
     app.include_router(create_application_router(shutdown_token, shutdown_callback))
     if static_dir is not None:

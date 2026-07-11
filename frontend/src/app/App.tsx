@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, Route, Routes } from "react-router-dom";
 
+import type { AiSettingsApi } from "../api/aiSettings";
 import { fetchHealth, type HealthResponse } from "../api/health";
+import { AiSettingsPage } from "../features/ai-settings/AiSettingsPage";
 import type { GameBridgePort } from "../game/GameBridge";
 import styles from "./App.module.css";
 
@@ -9,6 +12,7 @@ type HealthLoader = (signal?: AbortSignal) => Promise<HealthResponse>;
 interface AppProps {
   loadHealth?: HealthLoader;
   createGameBridge?: () => GameBridgePort;
+  settingsApi?: AiSettingsApi;
 }
 
 type HealthState =
@@ -57,7 +61,13 @@ function GameCanvas({ createBridge }: { createBridge?: () => GameBridgePort }) {
   );
 }
 
-export function App({ loadHealth = fetchHealth, createGameBridge }: AppProps) {
+function GameShell({
+  loadHealth,
+  createGameBridge,
+}: {
+  loadHealth: HealthLoader;
+  createGameBridge?: () => GameBridgePort;
+}) {
   const [healthState, setHealthState] = useState<HealthState>({
     kind: "loading",
   });
@@ -114,9 +124,36 @@ export function App({ loadHealth = fetchHealth, createGameBridge }: AppProps) {
             <h1>本地服务已连接</h1>
             <p>Clear Sky Engine {healthState.health.app_version}</p>
             <p>SQLite {healthState.health.sqlite_version}</p>
+            <Link className={styles.settingsLink} to="/settings/ai">
+              AI 设置
+            </Link>
           </>
         )}
       </section>
     </main>
+  );
+}
+
+export function App({
+  loadHealth = fetchHealth,
+  createGameBridge,
+  settingsApi,
+}: AppProps) {
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <GameShell
+            loadHealth={loadHealth}
+            createGameBridge={createGameBridge}
+          />
+        }
+      />
+      <Route
+        path="/settings/ai"
+        element={<AiSettingsPage api={settingsApi} />}
+      />
+    </Routes>
   );
 }

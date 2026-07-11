@@ -1,5 +1,6 @@
 """全局 AI Provider 与模型目录 API。"""
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -7,7 +8,12 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
+from app.ai.connection_test import ConnectionTestResult, ConnectionTestService
+from app.ai.contracts import ProviderRegistry
+from app.ai.dto import TokenUsage
+from app.ai.errors import AiErrorCategory
 from app.ai.service import (
+    AiSettingsConfigurationError,
     AiSettingsConflictError,
     AiSettingsNotFoundError,
     AiSettingsService,
@@ -105,6 +111,22 @@ class ModelResponse(BaseModel):
     updated_at: datetime
 
 
+class ConnectionTestRequest(BaseModel):
+    model_id: int = Field(gt=0)
+
+
+class ConnectionTestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    success: bool
+    provider_type: ProviderType
+    remote_model: str
+    capabilities: dict[str, JsonValue]
+    diagnostic: str
+    error_category: AiErrorCategory | None
+    usage: TokenUsage | None
+
+
 def _not_found(error: AiSettingsNotFoundError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
 
@@ -121,10 +143,14 @@ def _model_response(record: ModelRecord) -> ModelResponse:
     return ModelResponse.model_validate(record)
 
 
-def create_provider_router(service: AiSettingsService) -> APIRouter:
+def create_provider_router(
+    service: AiSettingsService,
+    get_registry: Callable[[], ProviderRegistry],
+) -> APIRouter:
     """路由只解析 DTO、调用 Service 并转换业务错误。"""
 
     router = APIRouter(prefix="/api")
+    connection_tests = ConnectionTestService(service)
 
     def _list_providers() -> list[ProviderResponse]:
         return [_provider_response(item) for item in service.list_providers()]
@@ -180,6 +206,21 @@ def create_provider_router(service: AiSettingsService) -> APIRouter:
         except AiSettingsNotFoundError as error:
             raise _not_found(error) from None
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    async def _test_provider_connection(
+        provider_id: int, payload: ConnectionTestRequest
+    ) -> ConnectionTestResponse:
+        try:
+            result: ConnectionTestResult = await connection_tests.test(
+                registry=get_registry(),
+                provider_id=provider_id,
+                model_id=payload.model_id,
+            )
+        except AiSettingsNotFoundError as error:
+            raise _not_found(error) from None
+        except AiSettingsConfigurationError as error:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from None
+        return ConnectionTestResponse.model_validate(result)
 
     def _list_models(
         provider_id: Annotated[int | None, Query(gt=0)] = None,
@@ -261,6 +302,12 @@ def create_provider_router(service: AiSettingsService) -> APIRouter:
         _delete_provider,
         methods=["DELETE"],
         status_code=status.HTTP_204_NO_CONTENT,
+    )
+    router.add_api_route(
+        "/providers/{provider_id}/test-connection",
+        _test_provider_connection,
+        methods=["POST"],
+        response_model=ConnectionTestResponse,
     )
     router.add_api_route(
         "/models", _list_models, methods=["GET"], response_model=list[ModelResponse]

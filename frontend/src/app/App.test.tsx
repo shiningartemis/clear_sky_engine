@@ -1,7 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import type { AiSettingsApi } from "../api/aiSettings";
 import type { HealthResponse } from "../api/health";
 import { App } from "./App";
 
@@ -12,13 +14,19 @@ const healthyResponse: HealthResponse = {
   sqlite_version: "3.53.1",
 };
 
+function renderApp(element: React.ReactNode) {
+  return render(<MemoryRouter>{element}</MemoryRouter>);
+}
+
 describe("App", () => {
   it("shows loading and then the connected application shell", async () => {
     const loadHealth = vi.fn<() => Promise<HealthResponse>>();
     loadHealth.mockResolvedValue(healthyResponse);
     const createGameBridge = () => ({ mount: vi.fn(), destroy: vi.fn() });
 
-    render(<App loadHealth={loadHealth} createGameBridge={createGameBridge} />);
+    renderApp(
+      <App loadHealth={loadHealth} createGameBridge={createGameBridge} />,
+    );
 
     expect(screen.getByText("正在连接本地服务…")).toBeInTheDocument();
     expect(await screen.findByText("本地服务已连接")).toBeInTheDocument();
@@ -34,7 +42,9 @@ describe("App", () => {
       .mockResolvedValueOnce(healthyResponse);
     const createGameBridge = () => ({ mount: vi.fn(), destroy: vi.fn() });
 
-    render(<App loadHealth={loadHealth} createGameBridge={createGameBridge} />);
+    renderApp(
+      <App loadHealth={loadHealth} createGameBridge={createGameBridge} />,
+    );
 
     expect(await screen.findByText("无法连接本地服务")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "重试" }));
@@ -49,11 +59,42 @@ describe("App", () => {
     const destroy = vi.fn();
     const createGameBridge = () => ({ mount: vi.fn(), destroy });
 
-    const { unmount } = render(
+    const { unmount } = renderApp(
       <App loadHealth={loadHealth} createGameBridge={createGameBridge} />,
     );
     unmount();
 
     expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigates from the game shell to global AI settings", async () => {
+    const user = userEvent.setup();
+    const loadHealth = vi
+      .fn<() => Promise<HealthResponse>>()
+      .mockResolvedValue(healthyResponse);
+    const settingsApi: AiSettingsApi = {
+      listProviders: vi.fn().mockResolvedValue([]),
+      listModels: vi.fn().mockResolvedValue([]),
+      createProvider: vi.fn(),
+      updateProvider: vi.fn(),
+      deleteProvider: vi.fn(),
+      createModel: vi.fn(),
+      updateModel: vi.fn(),
+      deleteModel: vi.fn(),
+      testConnection: vi.fn(),
+    };
+
+    renderApp(
+      <App
+        loadHealth={loadHealth}
+        createGameBridge={() => ({ mount: vi.fn(), destroy: vi.fn() })}
+        settingsApi={settingsApi}
+      />,
+    );
+
+    await user.click(await screen.findByRole("link", { name: "AI 设置" }));
+    expect(
+      await screen.findByRole("heading", { name: "Provider 与模型" }),
+    ).toBeInTheDocument();
   });
 });

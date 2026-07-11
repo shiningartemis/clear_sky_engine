@@ -5,9 +5,9 @@
 ## 当前状态
 
 - 当前阶段：阶段 2——AI Provider 管理与接入
-- 当前任务：2.5 管理界面与连接测试
-- 最近完成：DeepSeek V4 官方预设、thinking、reasoning、SSE keep-alive、JSON、Tool Calls 与错误码适配已通过离线验证
-- 下一步：先写连接测试 API 及 Provider/Model 管理页的 loading、empty、error、retry、编辑和密钥遮蔽失败测试
+- 当前任务：2.6 离线回归、真实 API 与阶段验收
+- 最近完成：Provider/Model 管理页、原生 Fetch、密钥遮蔽、连接测试 API 和真实 Chromium 关键流程验证已完成
+- 下一步：运行完整离线回归与构建，再使用 `deepseek-v4-flash` 验证普通、流式、thinking、JSON Output 和 Tool Calls
 - 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；真实 AI 验证会产生费用，安排在 Provider 实现完成后执行
 
 ## 执行规则
@@ -200,9 +200,9 @@ uv run pytest backend/tests -q
 
 **文件范围：** `frontend/src/features/`、`frontend/src/api/`、`backend/src/app/api/`、前后端测试
 
-- [ ] 先写 Provider/Model 列表、编辑、密钥遮蔽、loading/empty/error/retry 和连接测试状态的失败测试。
-- [ ] 实现全局 Provider/Model 管理页面与原生 Fetch 调用，DTO 仅来自生成的 OpenAPI 类型。
-- [ ] 实现连接测试 API；结果只返回能力与脱敏诊断，不记录完整 Prompt、Key 或敏感响应。
+- [x] 先写 Provider/Model 列表、编辑、密钥遮蔽、loading/empty/error/retry 和连接测试状态的失败测试。
+- [x] 实现全局 Provider/Model 管理页面与原生 Fetch 调用，DTO 仅来自生成的 OpenAPI 类型。
+- [x] 实现连接测试 API；结果只返回能力与脱敏诊断，不记录完整 Prompt、Key 或敏感响应。
 
 ### 任务 2.6：离线回归、真实 API 与阶段验收
 
@@ -249,6 +249,7 @@ uv run pytest -m live_ai -q
 | 2026-07-11 | 2.2 | `pytest backend/tests/ai/test_contracts.py -q`；Ruff；Pyright；`scripts\check.ps1` | 8 个契约测试通过；统一 DTO、受控 Provider 选项、错误分类、密钥边界和无 fallback 注册表通过；全量静态检查、测试与构建通过 |
 | 2026-07-11 | 2.3 | `pytest backend/tests/ai/test_openai_compatible.py -q`；Ruff；Pyright；`scripts\check.ps1` | 10 个 respx/transport 测试通过；普通/流式文本、reasoning、Tool Calls、JSON、usage、错误映射、有限重试和取消语义一致；全量检查通过 |
 | 2026-07-11 | 2.4 | `pytest backend/tests/ai/test_deepseek.py -q`；Ruff；Pyright；`scripts\check.ps1` | 8 个 DeepSeek 离线测试通过；V4 预设、thinking、reasoning、keep-alive、JSON、Tool Calls、finish reason 和官方错误码映射通过；全量检查通过 |
+| 2026-07-11 | 2.5 | Provider API pytest；Vitest/RTL；Biome；TypeScript；Vite build；Playwright CLI Chromium | 连接测试成功/失败均脱敏；Provider/Model 管理、loading/empty/error/retry、密码输入和连接进度通过；真实 Chromium 关键流程成功，控制台 0 错误/警告 |
 
 ## 决策记录
 

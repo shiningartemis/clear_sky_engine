@@ -112,10 +112,57 @@ export interface paths {
         patch: operations["_update_provider_api_providers__provider_id__patch"];
         trace?: never;
     };
+    "/api/providers/{provider_id}/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Provider Connection */
+        post: operations["_test_provider_connection_api_providers__provider_id__test_connection_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AiErrorCategory
+         * @enum {string}
+         */
+        AiErrorCategory: "invalid_request" | "authentication" | "insufficient_balance" | "rate_limited" | "timeout" | "network" | "unavailable" | "invalid_response" | "cancelled";
+        /** ConnectionTestRequest */
+        ConnectionTestRequest: {
+            /** Model Id */
+            model_id: number;
+        };
+        /** ConnectionTestResponse */
+        ConnectionTestResponse: {
+            /** Capabilities */
+            capabilities: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Diagnostic */
+            diagnostic: string;
+            error_category: components["schemas"]["AiErrorCategory"] | null;
+            /**
+             * Provider Type
+             * @enum {string}
+             */
+            provider_type: "openai_compatible" | "deepseek";
+            /** Remote Model */
+            remote_model: string;
+            /** Success */
+            success: boolean;
+            usage: components["schemas"]["TokenUsage"] | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -290,6 +337,15 @@ export interface components {
              * @constant
              */
             status: "shutting_down";
+        };
+        /** TokenUsage */
+        TokenUsage: {
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Total Tokens */
+            total_tokens: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -658,6 +714,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _test_provider_connection_api_providers__provider_id__test_connection_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectionTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionTestResponse"];
                 };
             };
             /** @description Validation Error */

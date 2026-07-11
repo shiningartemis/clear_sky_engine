@@ -2,6 +2,8 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
+import respx
 from httpx import ASGITransport, AsyncClient
 
 from app.ai.service import AiSettingsConflictError, AiSettingsService
@@ -155,3 +157,96 @@ def test_conflict_exception_drops_sensitive_database_context(tmp_path: Path) -> 
         assert "sensitive-conflict-secret" not in str(error)
     else:
         raise AssertionError("重复 Provider 应产生脱敏的业务冲突")
+
+
+@respx.mock
+async def test_connection_test_returns_only_capabilities_diagnostic_and_usage(
+    tmp_path: Path,
+) -> None:
+    respx.post("https://api.deepseek.com/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "OK"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+            },
+        )
+    )
+    async with provider_client(tmp_path) as client:
+        provider = await client.post(
+            "/api/providers",
+            json={
+                "name": "DeepSeek",
+                "provider_type": "deepseek",
+                "base_url": "https://api.deepseek.com",
+                "api_key": "connection-test-key",
+            },
+        )
+        provider_id = provider.json()["id"]
+        model = await client.post(
+            "/api/models",
+            json={
+                "provider_id": provider_id,
+                "display_name": "DeepSeek V4 Flash",
+                "remote_model": "deepseek-v4-flash",
+                "capabilities": {"reasoning": True, "json_output": True, "tools": True},
+            },
+        )
+
+        response = await client.post(
+            f"/api/providers/{provider_id}/test-connection",
+            json={"model_id": model.json()["id"]},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "provider_type": "deepseek",
+        "remote_model": "deepseek-v4-flash",
+        "capabilities": {"reasoning": True, "json_output": True, "tools": True},
+        "diagnostic": "连接成功",
+        "error_category": None,
+        "usage": {"input_tokens": 3, "output_tokens": 1, "total_tokens": 4},
+    }
+    assert "connection-test-key" not in response.text
+    assert "OK" not in response.text
+
+
+@respx.mock
+async def test_connection_test_returns_redacted_provider_failure(tmp_path: Path) -> None:
+    respx.post("https://api.deepseek.com/chat/completions").mock(
+        return_value=httpx.Response(
+            401,
+            json={"error": {"message": "private upstream connection-test-key"}},
+        )
+    )
+    async with provider_client(tmp_path) as client:
+        provider = await client.post(
+            "/api/providers",
+            json={
+                "name": "DeepSeek",
+                "provider_type": "deepseek",
+                "base_url": "https://api.deepseek.com",
+                "api_key": "connection-test-key",
+            },
+        )
+        provider_id = provider.json()["id"]
+        model = await client.post(
+            "/api/models",
+            json={
+                "provider_id": provider_id,
+                "display_name": "DeepSeek V4 Flash",
+                "remote_model": "deepseek-v4-flash",
+            },
+        )
+
+        response = await client.post(
+            f"/api/providers/{provider_id}/test-connection",
+            json={"model_id": model.json()["id"]},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert response.json()["error_category"] == "authentication"
+    assert response.json()["diagnostic"] == "Provider 认证失败"
+    assert "connection-test-key" not in response.text

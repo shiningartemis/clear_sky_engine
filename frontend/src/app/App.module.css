@@ -54,6 +54,21 @@
   outline-offset: 3px;
 }
 
+.settingsLink {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 9px 18px;
+  border: 1px solid rgb(143 211 255 / 38%);
+  border-radius: 999px;
+  color: #bfe8ff;
+  text-decoration: none;
+}
+
+.settingsLink:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
 .eyebrow {
   font-size: 11px;
   font-weight: 800;

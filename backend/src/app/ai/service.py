@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from pydantic import SecretStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -17,6 +18,10 @@ class AiSettingsNotFoundError(Exception):
 
 class AiSettingsConflictError(Exception):
     """稳定唯一键发生冲突；错误文本不得包含用户输入或密钥。"""
+
+
+class AiSettingsConfigurationError(Exception):
+    """Provider 或模型缺少执行所需配置。"""
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,15 @@ class ModelRecord:
     enabled: bool
     created_at: datetime
     updated_at: datetime
+
+
+@dataclass(frozen=True)
+class ProviderConnectionRecord:
+    provider_id: int
+    provider_type: str
+    base_url: str
+    api_key: SecretStr
+    options: dict[str, JsonValue]
 
 
 @dataclass(frozen=True)
@@ -125,6 +139,23 @@ class AiSettingsService:
             if provider is None:
                 raise AiSettingsNotFoundError("Provider 不存在")
             return self._provider_record(provider)
+
+    def get_provider_connection(self, provider_id: int) -> ProviderConnectionRecord:
+        """只向 AI 调用层返回 SecretStr，API 查询仍只得到 has_api_key。"""
+
+        with self._session_factory() as session:
+            provider = AiSettingsStore(session).get_provider(provider_id)
+            if provider is None:
+                raise AiSettingsNotFoundError("Provider 不存在")
+            if not provider.api_key:
+                raise AiSettingsConfigurationError("Provider 尚未配置 API Key")
+            return ProviderConnectionRecord(
+                provider_id=provider.id,
+                provider_type=provider.provider_type,
+                base_url=provider.base_url,
+                api_key=SecretStr(provider.api_key),
+                options=provider.extra_json,
+            )
 
     def create_provider(
         self,
