@@ -159,6 +159,8 @@ def downgrade() -> None:
     op.drop_table("character_location_rule")
     op.drop_index("uq_world_role_state_player", table_name="world_role_state")
     op.drop_table("world_role_state")
+    # world 与 world_branch 形成环；先解除活动分支引用，避免启用外键时无法降级。
+    op.execute(sa.text("UPDATE world SET active_branch_id = NULL"))
     op.drop_table("world_branch")
     op.drop_table("world")
     op.drop_table("role")
