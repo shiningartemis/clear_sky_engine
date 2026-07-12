@@ -4,11 +4,8 @@
 
 ## 当前状态
 
-- 当前阶段：阶段 2——AI Provider 管理与接入
-- 当前任务：2.6 离线回归、真实 API 与阶段验收
-- 最近完成：Provider/Model 管理页、原生 Fetch、密钥遮蔽、连接测试 API 和真实 Chromium 关键流程验证已完成
-- 下一步：运行完整离线回归与构建，再使用 `deepseek-v4-flash` 验证普通、流式、thinking、JSON Output 和 Tool Calls
-- 阻塞项：阶段 1 的干净 Windows 11 x64 验收需要外部环境，继续作为发布门禁，不阻塞阶段 2 开发；真实 AI 验证会产生费用，安排在 Provider 实现完成后执行
+- 当前阶段：阶段2 已验收
+- 下一步：阶段3 的具体设计、plan.md 任务规划
 
 ## 执行规则
 
