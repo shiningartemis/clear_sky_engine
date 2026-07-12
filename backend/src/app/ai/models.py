@@ -3,13 +3,10 @@
 from datetime import datetime
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.ai.types import JsonValue
-
-
-class Base(DeclarativeBase):
-    """阶段 2 业务表的 SQLAlchemy 元数据根。"""
+from app.db.models import Base
 
 
 class AiProvider(Base):

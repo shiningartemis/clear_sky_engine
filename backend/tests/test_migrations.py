@@ -38,11 +38,11 @@ def test_empty_database_upgrades_to_alembic_head(tmp_path: Path) -> None:
     assert "alembic_version" in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0002_ai_providers"
+            "0003_phase3_world_roles"
         )
 
 
-def test_existing_initial_database_upgrades_to_provider_schema(tmp_path: Path) -> None:
+def test_existing_initial_database_upgrades_to_current_schema(tmp_path: Path) -> None:
     database_path = tmp_path / "app.db"
     alembic_ini = Path(__file__).parents[2] / "alembic.ini"
     alembic_config = Config(str(alembic_ini))
@@ -58,5 +58,5 @@ def test_existing_initial_database_upgrades_to_provider_schema(tmp_path: Path) -
     assert {"ai_provider", "ai_model"}.issubset(inspect(engine).get_table_names())
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0002_ai_providers"
+            "0003_phase3_world_roles"
         )
