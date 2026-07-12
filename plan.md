@@ -206,17 +206,17 @@ uv run pytest backend/tests -q
 
 ### 任务 2.6：离线回归、真实 API 与阶段验收
 
-- [ ] 运行完整 respx 回归、`scripts\generate-api.ps1` 和 `scripts\check.ps1`。
-- [ ] 使用用户提供的凭据运行普通、流式及模型支持能力的 `pytest -m live_ai -q`，记录 provider、模型、结果和 token usage。
-- [ ] 无凭据时明确记录“真实 AI 集成未验证”，保持真实 API 验收未勾选，不以 mock 代替。
-- [ ] 真实与离线验证均通过后完成阶段 2，并展开阶段 3 的世界、角色与地图细化清单。
+- [x] 运行完整 respx 回归、`scripts\generate-api.ps1` 和 `scripts\check.ps1`。
+- [x] 使用用户提供的凭据运行普通、流式及模型支持能力的 `pytest -m live_ai -q`，记录 provider、模型、结果和 token usage。
+- [x] 真实测试从本机正式 SQLite 读取启用配置；缺少数据库、Provider、Key 或模型时明确记录“真实 AI 集成未验证”，不以 mock 代替。
+- [x] 真实与离线验证均通过后完成阶段 2；按用户要求在此停止，不展开或实施阶段 3。
 
 ### 阶段 2 验收
 
-- [ ] 用户可以管理 OpenAI-compatible 与 DeepSeek Provider、模型和连接配置，查询响应与日志不泄露 API Key。
-- [ ] 普通与流式调用的文本、reasoning、Tool Calls、JSON Output、finish reason、usage 和错误语义一致。
-- [ ] respx 离线回归完整通过。
-- [ ] 真实 API 普通、流式及模型支持能力验证完成；无凭据时明确保留为未验证。
+- [x] 用户可以管理 OpenAI-compatible 与 DeepSeek Provider、模型和连接配置，查询响应与日志不泄露 API Key。
+- [x] 普通与流式调用的文本、reasoning、Tool Calls、JSON Output、finish reason、usage 和错误语义一致。
+- [x] respx 离线回归完整通过。
+- [x] 真实 API 普通、流式及模型支持能力验证完成；无凭据时明确保留为未验证。
 
 **阶段 2 验证命令：**
 
@@ -250,6 +250,7 @@ uv run pytest -m live_ai -q
 | 2026-07-11 | 2.3 | `pytest backend/tests/ai/test_openai_compatible.py -q`；Ruff；Pyright；`scripts\check.ps1` | 10 个 respx/transport 测试通过；普通/流式文本、reasoning、Tool Calls、JSON、usage、错误映射、有限重试和取消语义一致；全量检查通过 |
 | 2026-07-11 | 2.4 | `pytest backend/tests/ai/test_deepseek.py -q`；Ruff；Pyright；`scripts\check.ps1` | 8 个 DeepSeek 离线测试通过；V4 预设、thinking、reasoning、keep-alive、JSON、Tool Calls、finish reason 和官方错误码映射通过；全量检查通过 |
 | 2026-07-11 | 2.5 | Provider API pytest；Vitest/RTL；Biome；TypeScript；Vite build；Playwright CLI Chromium | 连接测试成功/失败均脱敏；Provider/Model 管理、loading/empty/error/retry、密码输入和连接进度通过；真实 Chromium 关键流程成功，控制台 0 错误/警告 |
+| 2026-07-12 | 2.6 / 阶段 2 | 聚焦离线 pytest；Ruff/Pyright；`generate-api.ps1 -Check`；`scripts\check.ps1`；`pytest backend/tests/ai/test_deepseek_live.py -m live_ai -q -s` | 离线聚焦 37 项、完整后端 66 项、前端 14 项通过，OpenAPI/Ruff/Pyright/Biome/TypeScript/Vite 均通过；SQLite 3.53.1。真实测试 6/6：`deepseek-v4-flash` 普通、流式、thinking、JSON Output、Tool Calls 全通过（输入 338、输出 122 tokens），`deepseek-v4-pro` 普通联通通过（输入 9、输出 1 token）；API Key 只存正式 SQLite，Provider API 密钥边界与仓库 0 匹配验证通过。阶段 2 完成后按用户要求停止 |
 
 ## 决策记录
 
@@ -263,4 +264,4 @@ uv run pytest -m live_ai -q
 
 ## 已完成阶段
 
-尚无。
+- 阶段 2：AI Provider 管理与接入（2026-07-12）；完成后按用户要求停止，未进入阶段 3。
