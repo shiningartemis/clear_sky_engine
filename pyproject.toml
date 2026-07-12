@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-ra"
+addopts = "-ra -m \"not live_ai\""
 pythonpath = ["backend/src"]
 testpaths = ["backend/tests"]
 asyncio_mode = "auto"
