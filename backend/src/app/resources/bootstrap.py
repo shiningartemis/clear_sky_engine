@@ -1,7 +1,6 @@
 """首次启动时准备可替换的默认地图。"""
 
 import shutil
-from collections.abc import Callable
 from pathlib import Path
 
 from app.resources.catalog import (
@@ -12,12 +11,18 @@ from app.resources.catalog import (
 )
 
 
-def ensure_default_maps(
-    default_maps_dir: Path,
-    maps_dir: Path,
-    *,
-    before_copy: Callable[[Path], None] | None = None,
-) -> None:
+def _copy_exclusive(source: Path, destination: Path) -> None:
+    """目标竞态出现时保留先到达的用户文件。"""
+
+    try:
+        # xb 把“目标仍不存在”与创建合并为一个原子文件操作，竞态失败时保留用户内容。
+        with source.open("rb") as source_file, destination.open("xb") as destination_file:
+            shutil.copyfileobj(source_file, destination_file)
+    except FileExistsError:
+        return
+
+
+def ensure_default_maps(default_maps_dir: Path, maps_dir: Path) -> None:
     """只补齐缺失文件主体；任何现有 JPG 或 PNG 都代表用户已接管该地图。"""
 
     resolved_defaults = default_maps_dir.resolve()
@@ -39,11 +44,4 @@ def ensure_default_maps(
         ):
             continue
         destination = safe_child(resolved_target, source_entry.name)
-        if before_copy is not None:
-            before_copy(destination)
-        try:
-            # xb 把“目标仍不存在”与创建合并为一个原子文件操作，竞态失败时保留用户内容。
-            with source.open("rb") as source_file, destination.open("xb") as destination_file:
-                shutil.copyfileobj(source_file, destination_file)
-        except FileExistsError:
-            continue
+        _copy_exclusive(source, destination)

@@ -1,5 +1,6 @@
 import json
 import os
+from inspect import signature
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.api.assets import create_asset_router
+from app.resources import bootstrap as resource_bootstrap
 from app.resources.bootstrap import ensure_default_maps
 from app.resources.catalog import (
     AssetNotFoundError,
@@ -263,17 +265,30 @@ def test_default_maps_copy_only_missing_files(tmp_path: Path) -> None:
     assert not (target / "map_manifest.json").exists()
 
 
-def test_default_map_copy_race_preserves_new_user_file(tmp_path: Path) -> None:
+def test_default_map_bootstrap_public_signature_has_no_test_seam() -> None:
+    assert list(signature(ensure_default_maps).parameters) == ["default_maps_dir", "maps_dir"]
+
+
+def test_default_map_copy_race_preserves_new_user_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     defaults = tmp_path / "defaults"
     target = tmp_path / "maps"
     defaults.mkdir()
     target.mkdir()
     (defaults / "总地图.png").write_bytes(b"default")
 
-    def create_user_file(destination: Path) -> None:
-        destination.write_bytes(b"user")
+    helper_name = "_copy_exclusive"
+    copy_exclusive = getattr(resource_bootstrap, helper_name)
+    assert callable(copy_exclusive)
 
-    ensure_default_maps(defaults, target, before_copy=create_user_file)
+    def create_user_file_then_copy(source: Path, destination: Path) -> None:
+        destination.write_bytes(b"user")
+        copy_exclusive(source, destination)
+
+    monkeypatch.setattr(resource_bootstrap, helper_name, create_user_file_then_copy)
+
+    ensure_default_maps(defaults, target)
 
     assert (target / "总地图.png").read_bytes() == b"user"
 
