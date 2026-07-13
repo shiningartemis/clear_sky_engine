@@ -1,81 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 import type { AiSettingsApi } from "../api/aiSettings";
 import { fetchHealth, type HealthResponse } from "../api/health";
 import type { RolesApi } from "../api/roles";
+import type { WorldsApi } from "../api/worlds";
 import { AiSettingsPage } from "../features/ai-settings/AiSettingsPage";
 import { RoleLibraryPage } from "../features/roles/RoleLibraryPage";
-import type { GameBridgePort } from "../game/GameBridge";
+import { WorldListPage } from "../features/worlds/WorldListPage";
+import { WorldRolesPage } from "../features/worlds/WorldRolesPage";
 import styles from "./App.module.css";
 
 type HealthLoader = (signal?: AbortSignal) => Promise<HealthResponse>;
 
 interface AppProps {
   loadHealth?: HealthLoader;
-  createGameBridge?: () => GameBridgePort;
   settingsApi?: AiSettingsApi;
   rolesApi?: RolesApi;
+  worldsApi?: WorldsApi;
 }
 
-type HealthState =
-  | { kind: "loading" }
-  | { kind: "ready"; health: HealthResponse }
-  | { kind: "error" };
+type HealthState = { kind: "loading" } | { kind: "ready" } | { kind: "error" };
 
-function GameCanvas({ createBridge }: { createBridge?: () => GameBridgePort }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) {
-      return undefined;
-    }
-
-    if (createBridge) {
-      const bridge = createBridge();
-      bridge.mount(container);
-      return () => bridge.destroy();
-    }
-
-    let active = true;
-    let bridge: GameBridgePort | undefined;
-    void import("../game/PhaserGame").then(({ createDefaultGameBridge }) => {
-      bridge = createDefaultGameBridge();
-      if (active) {
-        bridge.mount(container);
-      } else {
-        bridge.destroy();
-      }
-    });
-    return () => {
-      active = false;
-      bridge?.destroy();
-    };
-  }, [createBridge]);
-
-  return (
-    <div
-      ref={containerRef}
-      className={styles.gameCanvas}
-      role="application"
-      aria-label="游戏地图画布"
-    />
-  );
-}
-
-function GameShell({
+function HealthBootstrap({
   loadHealth,
-  createGameBridge,
+  children,
 }: {
   loadHealth: HealthLoader;
-  createGameBridge?: () => GameBridgePort;
+  children: React.ReactNode;
 }) {
-  const [healthState, setHealthState] = useState<HealthState>({
-    kind: "loading",
-  });
+  const [state, setState] = useState<HealthState>({ kind: "loading" });
   const requestSequence = useRef(0);
-  const activeController = useRef<AbortController>(undefined);
+  const activeController = useRef<AbortController | null>(null);
 
   const checkHealth = useCallback(() => {
     activeController.current?.abort();
@@ -83,17 +39,24 @@ function GameShell({
     activeController.current = controller;
     const requestId = requestSequence.current + 1;
     requestSequence.current = requestId;
-    setHealthState({ kind: "loading" });
+    setState({ kind: "loading" });
 
     void loadHealth(controller.signal).then(
-      (health) => {
-        if (requestSequence.current === requestId) {
-          setHealthState({ kind: "ready", health });
+      () => {
+        if (
+          requestSequence.current === requestId &&
+          activeController.current === controller
+        ) {
+          setState({ kind: "ready" });
         }
       },
       () => {
-        if (requestSequence.current === requestId) {
-          setHealthState({ kind: "error" });
+        if (
+          requestSequence.current === requestId &&
+          activeController.current === controller &&
+          !controller.signal.aborted
+        ) {
+          setState({ kind: "error" });
         }
       },
     );
@@ -102,34 +65,28 @@ function GameShell({
   useEffect(() => {
     checkHealth();
     return () => {
+      // 健康检查只是路由门禁，卸载后不得让旧请求重新打开页面。
       requestSequence.current += 1;
       activeController.current?.abort();
+      activeController.current = null;
     };
   }, [checkHealth]);
 
+  if (state.kind === "ready") return children;
+
   return (
     <main className={styles.shell}>
-      <GameCanvas createBridge={createGameBridge} />
       <section className={styles.statusPanel} aria-live="polite">
         <p className={styles.eyebrow}>CLEAR SKY ENGINE</p>
-        {healthState.kind === "loading" && <p>正在连接本地服务…</p>}
-        {healthState.kind === "error" && (
+        {state.kind === "loading" ? (
+          <p>正在连接本地服务…</p>
+        ) : (
           <>
             <h1>无法连接本地服务</h1>
             <p>请确认本地后端仍在运行，然后重试。</p>
             <button type="button" onClick={checkHealth}>
               重试
             </button>
-          </>
-        )}
-        {healthState.kind === "ready" && (
-          <>
-            <h1>本地服务已连接</h1>
-            <p>Clear Sky Engine {healthState.health.app_version}</p>
-            <p>SQLite {healthState.health.sqlite_version}</p>
-            <Link className={styles.settingsLink} to="/settings/ai">
-              AI 设置
-            </Link>
           </>
         )}
       </section>
@@ -139,26 +96,27 @@ function GameShell({
 
 export function App({
   loadHealth = fetchHealth,
-  createGameBridge,
   settingsApi,
   rolesApi,
+  worldsApi,
 }: AppProps) {
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <GameShell
-            loadHealth={loadHealth}
-            createGameBridge={createGameBridge}
-          />
-        }
-      />
-      <Route
-        path="/settings/ai"
-        element={<AiSettingsPage api={settingsApi} />}
-      />
-      <Route path="/roles" element={<RoleLibraryPage api={rolesApi} />} />
-    </Routes>
+    <HealthBootstrap loadHealth={loadHealth}>
+      <Routes>
+        <Route
+          path="/"
+          element={<WorldListPage api={worldsApi} assetApi={rolesApi} />}
+        />
+        <Route path="/roles" element={<RoleLibraryPage api={rolesApi} />} />
+        <Route
+          path="/worlds/:worldId/roles"
+          element={<WorldRolesPage api={worldsApi} roleApi={rolesApi} />}
+        />
+        <Route
+          path="/settings/ai"
+          element={<AiSettingsPage api={settingsApi} />}
+        />
+      </Routes>
+    </HealthBootstrap>
   );
 }

@@ -1,0 +1,407 @@
+.page {
+  min-height: 100vh;
+  padding: 40px clamp(20px, 5vw, 72px) 72px;
+  background:
+    radial-gradient(circle at 82% 5%, rgb(37 120 158 / 24%), transparent 31%),
+    linear-gradient(155deg, #07101d 0%, #0c1a2a 58%, #08111f 100%);
+  color: #edf6ff;
+}
+
+.header,
+.navigation,
+.toolbar,
+.formHeading,
+.formActions,
+.worldCard,
+.roleCard,
+.roleHeading,
+.cardActions,
+.candidateRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.header,
+.toolbar,
+.stateCard,
+.formCard,
+.cardGrid,
+.roleList,
+.ruleEditor,
+.errorBanner,
+.successBanner {
+  max-width: 1180px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.header {
+  margin-bottom: 28px;
+}
+
+.header h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(30px, 4vw, 48px);
+  letter-spacing: -0.03em;
+}
+
+.header p,
+.stateCard p,
+.formHeading p,
+.worldCard p,
+.roleSummary p {
+  margin: 0;
+  color: #a9bfce;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #78caef;
+}
+
+.pillLink,
+.primaryLink,
+.page button {
+  padding: 9px 16px;
+  border: 1px solid rgb(152 205 232 / 32%);
+  border-radius: 999px;
+  background: rgb(17 41 61 / 84%);
+  color: #e8f7ff;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primaryLink {
+  background: #8fd3ff;
+  color: #092033;
+  font-weight: 750;
+}
+
+.page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.page button:focus-visible,
+.pillLink:focus-visible,
+.primaryLink:focus-visible,
+.page input:focus-visible,
+.page select:focus-visible,
+.page textarea:focus-visible {
+  outline: 3px solid #80d3fa;
+  outline-offset: 2px;
+}
+
+.toolbar {
+  margin-bottom: 18px;
+  padding: 16px 20px;
+  border: 1px solid rgb(140 199 229 / 18%);
+  border-radius: 18px;
+  background: rgb(9 25 40 / 72%);
+}
+
+.stateCard,
+.formCard,
+.worldCard,
+.roleCard,
+.ruleEditor,
+.ruleCard {
+  border: 1px solid rgb(143 203 234 / 19%);
+  border-radius: 22px;
+  background: rgb(8 23 38 / 82%);
+  box-shadow: 0 22px 70px rgb(0 0 0 / 24%);
+  backdrop-filter: blur(16px);
+}
+
+.stateCard {
+  padding: 34px;
+  text-align: center;
+}
+
+.stateCard button,
+.stateCard .pillLink {
+  display: inline-block;
+  margin-top: 18px;
+}
+
+.formCard,
+.ruleEditor {
+  margin-bottom: 20px;
+  padding: 24px;
+}
+
+.formHeading {
+  margin-bottom: 20px;
+}
+
+.formHeading h2,
+.worldCard h2,
+.roleHeading h2,
+.roleSummary h3 {
+  margin: 8px 0;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.formGrid label,
+.pickerLabel,
+.candidateRow label {
+  display: grid;
+  gap: 7px;
+  color: #bfd2de;
+  font-size: 13px;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.page input,
+.page select,
+.page textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid rgb(143 203 234 / 24%);
+  border-radius: 10px;
+  background: #081827;
+  color: #edf6ff;
+  font: inherit;
+}
+
+.page textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.page input:disabled,
+.page select:disabled,
+.page textarea:disabled {
+  color: #91aab9;
+  opacity: 0.7;
+}
+
+.formActions {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.badge,
+.enabled,
+.disabled {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgb(74 163 204 / 20%);
+  color: #9cddfb;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.enabled {
+  background: rgb(53 155 105 / 20%);
+  color: #8ce0b8;
+}
+
+.disabled {
+  background: rgb(140 151 161 / 20%);
+  color: #b8c4cc;
+}
+
+.disabledReason,
+.inlineEmpty,
+.worldCard small {
+  color: #91aab9;
+  font-size: 13px;
+}
+
+.disabledReason {
+  margin: 8px 0 0;
+}
+
+.errorBanner,
+.successBanner {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.errorBanner {
+  border: 1px solid rgb(255 139 139 / 35%);
+  background: rgb(98 26 31 / 50%);
+  color: #ffd4d4;
+}
+
+.successBanner {
+  border: 1px solid rgb(112 219 169 / 30%);
+  background: rgb(25 83 61 / 48%);
+  color: #b8f2d5;
+}
+
+.cardGrid,
+.roleList {
+  display: grid;
+  gap: 18px;
+}
+
+.worldCard,
+.roleCard {
+  align-items: flex-start;
+  padding: 24px;
+}
+
+.worldCard > div:first-child,
+.roleSummary {
+  flex: 1;
+  min-width: 0;
+}
+
+.worldCard p + p {
+  margin-top: 6px;
+}
+
+.worldCard small {
+  display: block;
+  margin-top: 12px;
+}
+
+.cardActions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.confirmation {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+  color: #ffd4d4;
+  font-size: 13px;
+  text-align: right;
+}
+
+.portrait {
+  width: 112px;
+  aspect-ratio: 1;
+  border: 1px solid rgb(143 203 234 / 24%);
+  border-radius: 18px;
+  background: #081827;
+  object-fit: contain;
+}
+
+.roleHeading {
+  align-items: flex-start;
+}
+
+.attributeValues {
+  display: flex;
+  gap: 10px;
+  margin: 10px 0 0;
+  padding: 0;
+  flex-wrap: wrap;
+  list-style: none;
+}
+
+.attributeValues li {
+  display: inline-flex;
+  gap: 7px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgb(40 87 115 / 28%);
+  color: #edf6ff;
+  font-weight: 700;
+}
+
+.ruleEditor {
+  margin-top: 24px;
+}
+
+.ruleCard {
+  margin: 18px 0;
+  padding: 20px;
+  box-shadow: none;
+}
+
+.ruleCard legend {
+  padding: 0 8px;
+  color: #9cddfb;
+  font-weight: 700;
+}
+
+.weekdays {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.weekdays label,
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #bfd2de;
+  font-size: 13px;
+}
+
+.weekdays input,
+.checkboxLabel input {
+  width: auto;
+}
+
+.candidateList {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.candidateRow {
+  justify-content: flex-start;
+  padding: 14px;
+  border: 1px solid rgb(143 203 234 / 14%);
+  border-radius: 14px;
+}
+
+.candidateRow label {
+  flex: 1;
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding-top: 24px;
+  }
+
+  .header,
+  .toolbar,
+  .formHeading,
+  .worldCard,
+  .roleCard,
+  .candidateRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .navigation,
+  .cardActions {
+    justify-content: flex-start;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullWidth {
+    grid-column: auto;
+  }
+
+  .portrait {
+    width: min(160px, 100%);
+  }
+}
