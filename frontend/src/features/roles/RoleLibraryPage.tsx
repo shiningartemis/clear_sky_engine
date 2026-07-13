@@ -287,6 +287,8 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const nextAttributeId = useRef(0);
+  const activeLoadController = useRef<AbortController | null>(null);
+  const loadGeneration = useRef(0);
   const mutationPending = saving || deletingId !== null;
 
   function createEmptyAttribute(): AttributeDraft {
@@ -295,7 +297,11 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
   }
 
   const load = useCallback(() => {
+    activeLoadController.current?.abort();
     const controller = new AbortController();
+    activeLoadController.current = controller;
+    const generation = loadGeneration.current + 1;
+    loadGeneration.current = generation;
     setState({ kind: "loading" });
     setActionError(null);
     void Promise.all([
@@ -303,24 +309,38 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
       api.listRoles(controller.signal),
     ]).then(
       ([assetsResponse, rolesResponse]) => {
+        if (
+          loadGeneration.current !== generation ||
+          activeLoadController.current !== controller
+        ) {
+          return;
+        }
         setState({
           kind: "ready",
           assets: assetsResponse,
           roles: rolesResponse,
         });
       },
-      (error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
+      () => {
+        if (
+          loadGeneration.current === generation &&
+          activeLoadController.current === controller &&
+          !controller.signal.aborted
+        ) {
           setState({ kind: "error" });
         }
       },
     );
-    return controller;
   }, [api]);
 
   useEffect(() => {
-    const controller = load();
-    return () => controller.abort();
+    load();
+    return () => {
+      // API 切换或卸载后，即使底层 Promise 忽略取消也不能回写旧响应。
+      loadGeneration.current += 1;
+      activeLoadController.current?.abort();
+      activeLoadController.current = null;
+    };
   }, [load]);
 
   function updateAttribute(index: number, update: Partial<AttributeDraft>) {
@@ -471,7 +491,7 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
         <section className={styles.stateCard}>
           <h2>无法加载角色库</h2>
           <p>角色和本地素材都没有被更改，请检查本地服务后重试。</p>
-          <button type="button" onClick={() => void load()}>
+          <button type="button" onClick={load}>
             重试
           </button>
         </section>
@@ -480,16 +500,26 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
       {state.kind === "ready" && (
         <>
           <section className={styles.toolbar}>
-            <span>
-              <strong>{state.roles.length}</strong> 个角色 ·{" "}
-              <strong>{state.assets.length}</strong> 个可用素材
-            </span>
+            <div>
+              <span>
+                <strong>{state.roles.length}</strong> 个角色 ·{" "}
+                <strong>{state.assets.length}</strong> 个可用素材
+              </span>
+              {state.assets.length === 0 && (
+                <p
+                  className={styles.disabledReason}
+                  id="missing-role-asset-reason"
+                >
+                  请先在角色资源目录中添加有效的同名立绘。
+                </p>
+              )}
+            </div>
             <button
               type="button"
               disabled={mutationPending || state.assets.length === 0}
-              title={
+              aria-describedby={
                 state.assets.length === 0
-                  ? "请先在角色资源目录中添加有效的同名立绘"
+                  ? "missing-role-asset-reason"
                   : undefined
               }
               onClick={() => {
@@ -887,9 +917,16 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
                     <small>
                       {role.attributes.length} 个属性 · 版本 {role.version}
                     </small>
-                    <p className={styles.references}>
+                    <p
+                      className={styles.references}
+                      id={
+                        role.referenced_world_ids.length > 0
+                          ? `role-delete-reason-${role.id}`
+                          : undefined
+                      }
+                    >
                       {role.referenced_world_ids.length > 0
-                        ? `引用世界：${role.referenced_world_ids.join("、")}`
+                        ? `该角色仍被世界 ${role.referenced_world_ids.join("、")} 引用，不能删除。`
                         : "尚未被世界引用"}
                     </p>
                   </div>
@@ -913,9 +950,9 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
                         role.referenced_world_ids.length > 0
                       }
                       aria-label={`删除角色 ${role.name}`}
-                      title={
+                      aria-describedby={
                         role.referenced_world_ids.length > 0
-                          ? "角色仍被世界引用，不能删除"
+                          ? `role-delete-reason-${role.id}`
                           : undefined
                       }
                       onClick={() => setConfirmDeleteId(role.id)}
@@ -927,7 +964,7 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
                         <span>删除后无法恢复。</span>
                         <button
                           type="button"
-                          disabled={deletingId === role.id}
+                          disabled={mutationPending}
                           onClick={() => void deleteRole(role)}
                         >
                           {deletingId === role.id
@@ -936,7 +973,7 @@ export function RoleLibraryPage({ api = rolesApi }: RoleLibraryPageProps) {
                         </button>
                         <button
                           type="button"
-                          disabled={deletingId === role.id}
+                          disabled={mutationPending}
                           onClick={() => setConfirmDeleteId(null)}
                         >
                           取消删除

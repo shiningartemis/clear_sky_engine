@@ -91,6 +91,23 @@ describe("rolesApi", () => {
     });
   });
 
+  it("turns invalid JSON into ApiError with the response status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response('{"id":', {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(rolesApi.listRoles()).rejects.toMatchObject({
+      name: "ApiError",
+      status: 200,
+    });
+  });
+
   it("sorts validated character assets by role name", async () => {
     vi.stubGlobal(
       "fetch",
@@ -126,6 +143,16 @@ describe("rolesApi", () => {
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(abortError));
 
     await expect(rolesApi.listAssets()).rejects.toBe(abortError);
+  });
+
+  it("propagates network rejection without wrapping it", async () => {
+    const networkError = new TypeError("network offline");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockRejectedValue(networkError),
+    );
+
+    await expect(rolesApi.listRoles()).rejects.toBe(networkError);
   });
 
   it("preserves non-success status in ApiError", async () => {

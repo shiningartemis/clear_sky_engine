@@ -259,6 +259,12 @@
   color: #91aab9;
 }
 
+.disabledReason {
+  margin: 8px 0 0;
+  color: #91aab9;
+  font-size: 13px;
+}
+
 .roleCard {
   align-items: flex-start;
   padding: 24px;

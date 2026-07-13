@@ -118,7 +118,16 @@ async function requestJson<T>(
   if (!response.ok) {
     throw new ApiError("角色库请求失败。", response.status);
   }
-  const payload: unknown = await response.json();
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    // 只转换 JSON 语法错误；请求取消与网络异常必须保留原始语义。
+    if (error instanceof SyntaxError) {
+      throw new ApiError("角色库响应格式无效。", response.status);
+    }
+    throw error;
+  }
   if (!validate(payload)) {
     throw new ApiError("角色库响应格式无效。", response.status);
   }
