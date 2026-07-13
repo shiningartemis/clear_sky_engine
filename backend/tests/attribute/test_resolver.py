@@ -212,6 +212,114 @@ def test_boundary_model_rejects_invalid_definition(kwargs: dict[str, object], me
         AttributeDefinition.model_validate(values)
 
 
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"minimum": "0"},
+        {"maximum": "10"},
+        {"allowed_operations": ["replace"]},
+        {
+            "data_type": "enum",
+            "base_value": "学徒",
+            "enum_options": ["学徒", "法师"],
+        },
+    ],
+)
+def test_attribute_definition_rejects_coercible_boundary_inputs(
+    overrides: dict[str, object],
+) -> None:
+    values: dict[str, object] = {
+        "key": "level",
+        "display_name": "等级",
+        "data_type": "integer",
+        "base_value": 1,
+        "description": "角色等级",
+        "update_rule": "仅在成长时更新",
+        "allowed_operations": frozenset({"replace"}),
+    }
+    values.update(overrides)
+
+    with pytest.raises(ValidationError):
+        AttributeDefinition.model_validate(values)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"role_id": "7"},
+        {"source_event_id": "101"},
+        {"expected_version": "3"},
+    ],
+)
+def test_attribute_update_intent_rejects_coercible_identifiers(
+    overrides: dict[str, object],
+) -> None:
+    values: dict[str, object] = {
+        "role_id": 7,
+        "attribute_key": "level",
+        "operation": "replace",
+        "value": 15,
+        "reason": "本轮事件导致属性变化",
+        "source_event_id": 101,
+        "expected_version": 3,
+    }
+    values.update(overrides)
+
+    with pytest.raises(ValidationError):
+        AttributeUpdateIntent.model_validate(values)
+
+
+@pytest.mark.parametrize(
+    ("base_value", "minimum", "maximum", "message"),
+    [
+        (0, 1, None, "基础值不能小于最小值"),
+        (11, None, 10, "基础值不能大于最大值"),
+    ],
+)
+def test_numeric_base_value_must_be_within_constraints(
+    base_value: AttributeScalar,
+    minimum: float | None,
+    maximum: float | None,
+    message: str,
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        AttributeDefinition(
+            key="level",
+            display_name="等级",
+            data_type="integer",
+            base_value=base_value,
+            description="角色等级",
+            update_rule="仅在成长时更新",
+            allowed_operations=frozenset({"replace"}),
+            minimum=minimum,
+            maximum=maximum,
+        )
+
+
+@pytest.mark.parametrize(
+    ("base_value", "minimum", "maximum"),
+    [(1, 1, None), (10, None, 10)],
+)
+def test_numeric_base_value_accepts_inclusive_constraints(
+    base_value: AttributeScalar,
+    minimum: float | None,
+    maximum: float | None,
+) -> None:
+    model = AttributeDefinition(
+        key="level",
+        display_name="等级",
+        data_type="integer",
+        base_value=base_value,
+        description="角色等级",
+        update_rule="仅在成长时更新",
+        allowed_operations=frozenset({"replace"}),
+        minimum=minimum,
+        maximum=maximum,
+    )
+
+    assert model.base_value == base_value
+
+
 def test_read_path_clamps_legacy_numeric_value() -> None:
     definitions = [definition("level", "integer", 10, minimum=0, maximum=12)]
 

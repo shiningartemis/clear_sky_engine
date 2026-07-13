@@ -18,7 +18,7 @@ class AttributeDefinitionError(ValueError):
 class AttributeDefinition(BaseModel):
     """角色主表拥有的单个平铺属性定义。"""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
     key: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
     display_name: Annotated[str, Field(min_length=1, max_length=80)]
@@ -51,6 +51,14 @@ class AttributeDefinition(BaseModel):
             raise ValueError("字符串基础值类型无效")
         if self.data_type == "boolean" and type(self.base_value) is not bool:
             raise ValueError("布尔基础值类型无效")
+        if self.data_type in {"integer", "number"} and (
+            type(self.base_value) is int or type(self.base_value) is float
+        ):
+            numeric_base = self.base_value
+            if self.minimum is not None and numeric_base < self.minimum:
+                raise ValueError("基础值不能小于最小值")
+            if self.maximum is not None and numeric_base > self.maximum:
+                raise ValueError("基础值不能大于最大值")
 
         if self.data_type == "enum":
             if any(not option for option in self.enum_options):
@@ -75,7 +83,7 @@ class AttributeDefinition(BaseModel):
 class AttributeUpdateIntent(BaseModel):
     """AI 只能提交该结构化意图，不能直接修改世界属性。"""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
     role_id: int = Field(gt=0)
     attribute_key: str
@@ -146,6 +154,12 @@ def _optional_object(values: dict[str, JsonValue], key: str, *, label: str) -> d
     return value
 
 
+def _string_array(value: JsonValue, *, label: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise AttributeDefinitionError(f"属性定义{label}格式无效")
+    return [item for item in value if isinstance(item, str)]
+
+
 def decode_attribute_definitions(
     maps: AttributeDefinitionMaps,
 ) -> tuple[AttributeDefinition, ...]:
@@ -167,6 +181,8 @@ def decode_attribute_definitions(
     for key, base_value in maps.base_values.items():
         constraints = _optional_object(maps.constraints, key, label="约束")
         examples = _optional_object(maps.examples, key, label="示例")
+        allowed_operations = _string_array(maps.allowed_operations[key], label="允许操作")
+        enum_options = _string_array(constraints.get("enum_options", []), label="枚举选项")
         values: dict[str, object] = {
             "key": key,
             "display_name": maps.labels[key],
@@ -174,10 +190,10 @@ def decode_attribute_definitions(
             "base_value": base_value,
             "description": maps.descriptions[key],
             "update_rule": maps.update_rules[key],
-            "allowed_operations": maps.allowed_operations[key],
+            "allowed_operations": frozenset(allowed_operations),
             "minimum": constraints.get("minimum"),
             "maximum": constraints.get("maximum"),
-            "enum_options": constraints.get("enum_options", []),
+            "enum_options": tuple(enum_options),
             "update_example": examples.get("update"),
             "no_update_example": examples.get("no_update"),
         }
