@@ -235,6 +235,13 @@
 }
 
 .errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.errorBanner {
   border: 1px solid rgb(255 139 139 / 35%);
   background: rgb(98 26 31 / 50%);
   color: #ffd4d4;

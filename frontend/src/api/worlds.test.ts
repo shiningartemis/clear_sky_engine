@@ -272,6 +272,25 @@ describe("worldsApi", () => {
     await expect(worldsApi.listWorlds()).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("rejects a world whose nested player references another world", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        jsonResponse([
+          {
+            ...worldResponse(),
+            player_role: {
+              ...roleResponse(),
+              referenced_world_ids: [99],
+            },
+          },
+        ]),
+      ),
+    );
+
+    await expect(worldsApi.listWorlds()).rejects.toBeInstanceOf(ApiError);
+  });
+
   it("rejects arrays where scalar records are required", async () => {
     vi.stubGlobal(
       "fetch",
@@ -379,5 +398,22 @@ describe("worldsApi", () => {
       status: 409,
     });
     await expect(worldsApi.listWorlds()).rejects.toBe(abortError);
+  });
+
+  it("safely preserves backend conflict detail with its status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          jsonResponse({ detail: "世界 NPC 已达到 20 个上限" }, 409),
+        ),
+    );
+
+    await expect(worldsApi.addNpc(4, 12)).rejects.toMatchObject({
+      name: "ApiError",
+      status: 409,
+      message: "世界 NPC 已达到 20 个上限",
+    });
   });
 });

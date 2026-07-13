@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../../api/health";
 import type { RoleResponse, RolesApi } from "../../api/roles";
 import type { WorldRoleResponse, WorldsApi } from "../../api/worlds";
 import { WorldRolesPage } from "./WorldRolesPage";
@@ -173,6 +174,60 @@ describe("WorldRolesPage", () => {
     expect(api.addNpc).toHaveBeenCalledWith(4, 15);
     expect(
       await screen.findByRole("heading", { name: "安可儿" }),
+    ).toBeInTheDocument();
+  });
+
+  it("disables NPC selection and add at the 20 NPC limit", async () => {
+    const worldRoles = [
+      worldRole(),
+      ...Array.from({ length: 20 }, (_, index) =>
+        worldRole({
+          role_id: 100 + index,
+          name: `NPC ${index + 1}`,
+          kind: "npc",
+        }),
+      ),
+    ];
+    const api = createWorldsApi({
+      listWorldRoles: vi.fn().mockResolvedValue(worldRoles),
+    });
+    const roleApi = createRolesApi({
+      listRoles: vi
+        .fn()
+        .mockResolvedValue([libraryRole({ id: 50, name: "候选 NPC" })]),
+    });
+    renderWorldRoles(api, roleApi);
+
+    const picker = await screen.findByLabelText("选择 NPC");
+    const addButton = screen.getByRole("button", { name: "加入 NPC" });
+    expect(picker).toBeDisabled();
+    expect(addButton).toBeDisabled();
+    expect(picker).toHaveAccessibleDescription(
+      "当前世界已达到 20 个 NPC 上限，需先移除一个 NPC。",
+    );
+    expect(addButton).toHaveAccessibleDescription(
+      "当前世界已达到 20 个 NPC 上限，需先移除一个 NPC。",
+    );
+  });
+
+  it("shows safe backend conflict detail with a reload action", async () => {
+    const user = userEvent.setup();
+    const api = createWorldsApi({
+      addNpc: vi
+        .fn()
+        .mockRejectedValue(new ApiError("世界 NPC 已达到 20 个上限", 409)),
+    });
+    renderWorldRoles(api);
+
+    const picker = await screen.findByLabelText("选择 NPC");
+    await user.selectOptions(picker, "15");
+    await user.click(screen.getByRole("button", { name: "加入 NPC" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "世界 NPC 已达到 20 个上限",
+    );
+    expect(
+      screen.getByRole("button", { name: "重新加载世界角色" }),
     ).toBeInTheDocument();
   });
 

@@ -5,6 +5,7 @@ export type GameViewResponse = components["schemas"]["GameViewResponse"];
 export type LocationRuleCreate = components["schemas"]["LocationRuleCreate"];
 export type LocationRuleResponse =
   components["schemas"]["LocationRuleResponse"];
+type RoleResponse = components["schemas"]["RoleResponse"];
 export type WorldCreate = components["schemas"]["WorldCreate"];
 export type WorldResponse = components["schemas"]["WorldResponse"];
 export type WorldRoleResponse = components["schemas"]["WorldRoleResponse"];
@@ -154,7 +155,7 @@ function isAttributeDefinition(value: unknown): boolean {
   );
 }
 
-function isRoleResponse(value: unknown): boolean {
+function isRoleResponse(value: unknown): value is RoleResponse {
   return (
     isRecord(value) &&
     isPositiveInteger(value.id) &&
@@ -185,6 +186,7 @@ function isWorldResponse(value: unknown): value is WorldResponse {
     isWeekday(value.weekday) &&
     isTimeSlot(value.time_slot) &&
     isRoleResponse(value.player_role) &&
+    value.player_role.referenced_world_ids.includes(value.id) &&
     isNonNegativeInteger(value.npc_count) &&
     typeof value.last_played_at === "string"
   );
@@ -353,7 +355,7 @@ async function requestJson<T>(
 ): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
-    throw new ApiError("世界请求失败。", response.status);
+    throw await responseError(response);
   }
   let payload: unknown;
   try {
@@ -374,8 +376,33 @@ async function requestJson<T>(
 async function requestEmpty(url: string, init: RequestInit): Promise<void> {
   const response = await fetch(url, init);
   if (!response.ok) {
-    throw new ApiError("世界请求失败。", response.status);
+    throw await responseError(response);
   }
+}
+
+function safeErrorDetail(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  const detail = value.detail;
+  const message =
+    typeof detail === "string"
+      ? detail
+      : isRecord(detail) && typeof detail.message === "string"
+        ? detail.message
+        : null;
+  if (!message) return null;
+  const normalized = message.trim().replace(/[\r\n\t]+/gu, " ");
+  return normalized.length > 0 ? normalized.slice(0, 500) : null;
+}
+
+async function responseError(response: Response): Promise<ApiError> {
+  let detail: string | null = null;
+  try {
+    const payload: unknown = await response.json();
+    detail = safeErrorDetail(payload);
+  } catch {
+    // 错误体不可解析时只保留稳定的通用消息和 HTTP 状态。
+  }
+  return new ApiError(detail ?? "世界请求失败。", response.status);
 }
 
 const jsonHeaders = {

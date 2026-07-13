@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RolesApi } from "../../api/roles";
@@ -73,6 +73,24 @@ function renderWorldList(api = createWorldsApi(), assetApi = createRolesApi()) {
   );
 }
 
+function deferred<T>() {
+  let resolve: ((value: T) => void) | undefined;
+  let reject: ((reason?: unknown) => void) | undefined;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return {
+    promise,
+    resolve(value: T) {
+      resolve?.(value);
+    },
+    reject(reason?: unknown) {
+      reject?.(reason);
+    },
+  };
+}
+
 describe("WorldListPage", () => {
   it("creates a world without asking for a world name or weekday", async () => {
     const user = userEvent.setup();
@@ -134,6 +152,121 @@ describe("WorldListPage", () => {
       protagonist_name: "天",
       protagonist_persona: "谨慎的冒险者",
     });
+  });
+
+  it("does not navigate when a delayed create succeeds after leaving the page", async () => {
+    const user = userEvent.setup();
+    const createResult = deferred<WorldResponse>();
+    const api = createWorldsApi({
+      createWorld: vi.fn(() => createResult.promise),
+    });
+
+    render(
+      <MemoryRouter>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <Link to="/away">离开世界列表</Link>
+                <WorldListPage api={api} assetApi={createRolesApi()} />
+              </>
+            }
+          />
+          <Route path="/away" element={<p>已离开世界列表</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "创建世界" }));
+    await user.selectOptions(screen.getByLabelText("主角名称"), "天");
+    await user.type(screen.getByLabelText("基础人设"), "谨慎的冒险者");
+    await user.click(screen.getByRole("button", { name: "确认创建" }));
+    await user.click(screen.getByRole("link", { name: "离开世界列表" }));
+
+    await act(async () => {
+      createResult.resolve(worldResponse());
+      await createResult.promise;
+    });
+
+    expect(screen.getByText("已离开世界列表")).toBeInTheDocument();
+  });
+
+  it("does not apply a delayed delete after the page reloads", async () => {
+    const user = userEvent.setup();
+    const deleteResult = deferred<void>();
+    const firstApi = createWorldsApi({
+      listWorlds: vi.fn().mockResolvedValue([worldResponse()]),
+      deleteWorld: vi.fn(() => deleteResult.promise),
+    });
+    const secondApi = createWorldsApi({
+      listWorlds: vi.fn().mockResolvedValue([worldResponse({ day: 9 })]),
+    });
+    const assetApi = createRolesApi();
+    const view = render(
+      <MemoryRouter>
+        <WorldListPage api={firstApi} assetApi={assetApi} />
+      </MemoryRouter>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "删除世界 世界 4" }),
+    );
+    await user.click(screen.getByRole("button", { name: "确认删除 世界 4" }));
+    view.rerender(
+      <MemoryRouter>
+        <WorldListPage api={secondApi} assetApi={assetApi} />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByText("Day 9 · 星期三 · 傍晚"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      deleteResult.resolve(undefined);
+      await deleteResult.promise;
+    });
+
+    expect(screen.getByText("Day 9 · 星期三 · 傍晚")).toBeInTheDocument();
+  });
+
+  it("does not show a delayed delete error after the page reloads", async () => {
+    const user = userEvent.setup();
+    const deleteResult = deferred<void>();
+    const firstApi = createWorldsApi({
+      listWorlds: vi.fn().mockResolvedValue([worldResponse()]),
+      deleteWorld: vi.fn(() => deleteResult.promise),
+    });
+    const secondApi = createWorldsApi({
+      listWorlds: vi.fn().mockResolvedValue([worldResponse({ day: 9 })]),
+    });
+    const assetApi = createRolesApi();
+    const view = render(
+      <MemoryRouter>
+        <WorldListPage api={firstApi} assetApi={assetApi} />
+      </MemoryRouter>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "删除世界 世界 4" }),
+    );
+    await user.click(screen.getByRole("button", { name: "确认删除 世界 4" }));
+    view.rerender(
+      <MemoryRouter>
+        <WorldListPage api={secondApi} assetApi={assetApi} />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByText("Day 9 · 星期三 · 傍晚"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      deleteResult.reject(new Error("late failure"));
+      await deleteResult.promise.catch(() => undefined);
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Day 9 · 星期三 · 傍晚")).toBeInTheDocument();
   });
 
   it("renders only server world facts and confirms deletion", async () => {

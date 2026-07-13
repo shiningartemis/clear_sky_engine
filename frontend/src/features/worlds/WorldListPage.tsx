@@ -82,6 +82,9 @@ export function WorldListPage({
     activeController.current = controller;
     const generation = loadGeneration.current + 1;
     loadGeneration.current = generation;
+    setCreating(false);
+    setDeletingId(null);
+    setConfirmDeleteId(null);
     setState({ kind: "loading" });
     setActionError(null);
 
@@ -119,11 +122,16 @@ export function WorldListPage({
     };
   }, [load]);
 
+  function isCurrentPage(generation: number): boolean {
+    return loadGeneration.current === generation;
+  }
+
   async function createWorld(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!protagonistName || !protagonistPersona.trim() || mutationPending) {
       return;
     }
+    const generation = loadGeneration.current;
     setCreating(true);
     setActionError(null);
     try {
@@ -131,21 +139,26 @@ export function WorldListPage({
         protagonist_name: protagonistName,
         protagonist_persona: protagonistPersona.trim(),
       });
+      if (!isCurrentPage(generation)) return;
       navigate(`/worlds/${world.id}/roles`);
     } catch {
       // 原子创建失败时保留表单，方便用户修正素材或重试。
-      setActionError("创建世界失败；输入已保留，请检查主角素材后重试。");
+      if (isCurrentPage(generation)) {
+        setActionError("创建世界失败；输入已保留，请检查主角素材后重试。");
+      }
     } finally {
-      setCreating(false);
+      if (isCurrentPage(generation)) setCreating(false);
     }
   }
 
   async function deleteWorld(world: WorldResponse) {
     if (mutationPending) return;
+    const generation = loadGeneration.current;
     setDeletingId(world.id);
     setActionError(null);
     try {
       await api.deleteWorld(world.id);
+      if (!isCurrentPage(generation)) return;
       setState((current) =>
         current.kind === "ready"
           ? {
@@ -156,9 +169,11 @@ export function WorldListPage({
       );
       setConfirmDeleteId(null);
     } catch {
-      setActionError("删除世界失败；世界未被更改，请重试。");
+      if (isCurrentPage(generation)) {
+        setActionError("删除世界失败；世界未被更改，请重试。");
+      }
     } finally {
-      setDeletingId(null);
+      if (isCurrentPage(generation)) setDeletingId(null);
     }
   }
 

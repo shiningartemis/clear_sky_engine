@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { ApiError } from "../../api/health";
 import { type RoleResponse, type RolesApi, rolesApi } from "../../api/roles";
 import {
   type LocationId,
@@ -113,6 +114,14 @@ function sortedWorldRoles(roles: WorldRoleResponse[]): WorldRoleResponse[] {
   });
 }
 
+function actionErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError && error.status === 409) {
+    const detail = error.message.trim().replace(/[。；;]+$/u, "");
+    if (detail) return `${detail}；请重新加载世界角色后重试。`;
+  }
+  return fallback;
+}
+
 export function WorldRolesPage({
   api = worldsApi,
   roleApi = rolesApi,
@@ -205,6 +214,11 @@ export function WorldRolesPage({
     const existingIds = new Set(state.worldRoles.map((role) => role.role_id));
     return state.roles.filter((role) => !existingIds.has(role.id));
   }, [state]);
+  const npcCount =
+    state.kind === "ready"
+      ? state.worldRoles.filter((role) => role.kind === "npc").length
+      : 0;
+  const npcLimitReached = npcCount >= 20;
 
   function updateWorldRole(updated: WorldRoleResponse) {
     setState((current) =>
@@ -223,7 +237,14 @@ export function WorldRolesPage({
 
   async function addNpc() {
     const roleId = Number(selectedRoleId);
-    if (!Number.isInteger(roleId) || roleId <= 0 || mutationPending) return;
+    if (
+      !Number.isInteger(roleId) ||
+      roleId <= 0 ||
+      mutationPending ||
+      npcLimitReached
+    ) {
+      return;
+    }
     const generation = loadGeneration.current;
     const targetWorldId = worldId;
     setPendingAction("add");
@@ -241,9 +262,14 @@ export function WorldRolesPage({
           : current,
       );
       setSelectedRoleId("");
-    } catch {
+    } catch (error) {
       if (isCurrentPage(generation, targetWorldId)) {
-        setActionError("加入 NPC 失败；世界角色没有被更改，请重试。");
+        setActionError(
+          actionErrorMessage(
+            error,
+            "加入 NPC 失败；世界角色没有被更改，请重试。",
+          ),
+        );
       }
     } finally {
       if (isCurrentPage(generation, targetWorldId)) setPendingAction(null);
@@ -265,9 +291,14 @@ export function WorldRolesPage({
       );
       if (!isCurrentPage(generation, targetWorldId)) return;
       updateWorldRole(updated);
-    } catch {
+    } catch (error) {
       if (isCurrentPage(generation, targetWorldId)) {
-        setActionError("更新 NPC 启用状态失败；原状态已保留，请重试。");
+        setActionError(
+          actionErrorMessage(
+            error,
+            "更新 NPC 启用状态失败；原状态已保留，请重试。",
+          ),
+        );
       }
     } finally {
       if (isCurrentPage(generation, targetWorldId)) setPendingAction(null);
@@ -296,9 +327,14 @@ export function WorldRolesPage({
       );
       if (editingRuleRoleId === role.role_id) setEditingRuleRoleId(null);
       setConfirmRemoveId(null);
-    } catch {
+    } catch (error) {
       if (isCurrentPage(generation, targetWorldId)) {
-        setActionError("移除 NPC 失败；角色和规则没有被更改，请重试。");
+        setActionError(
+          actionErrorMessage(
+            error,
+            "移除 NPC 失败；角色和规则没有被更改，请重试。",
+          ),
+        );
       }
     } finally {
       if (isCurrentPage(generation, targetWorldId)) setPendingAction(null);
@@ -379,9 +415,14 @@ export function WorldRolesPage({
       await api.replaceLocationRules(targetWorldId, targetRoleId, payload);
       if (!isCurrentPage(generation, targetWorldId)) return;
       setSuccessMessage("位置规则已原子替换。");
-    } catch {
+    } catch (error) {
       if (isCurrentPage(generation, targetWorldId)) {
-        setActionError("保存位置规则失败；原规则完整保留，请检查后重试。");
+        setActionError(
+          actionErrorMessage(
+            error,
+            "保存位置规则失败；原规则完整保留，请检查后重试。",
+          ),
+        );
       }
     } finally {
       if (isCurrentPage(generation, targetWorldId)) setPendingAction(null);
@@ -455,7 +496,12 @@ export function WorldRolesPage({
               选择 NPC
               <select
                 value={selectedRoleId}
-                disabled={mutationPending || availableRoles.length === 0}
+                disabled={
+                  mutationPending ||
+                  availableRoles.length === 0 ||
+                  npcLimitReached
+                }
+                aria-describedby="add-npc-disabled-reason"
                 onChange={(event) => setSelectedRoleId(event.target.value)}
               >
                 <option value="">请选择全局角色</option>
@@ -469,26 +515,31 @@ export function WorldRolesPage({
             <div>
               <button
                 type="button"
-                disabled={mutationPending || !selectedRoleId}
+                disabled={mutationPending || !selectedRoleId || npcLimitReached}
                 aria-describedby="add-npc-disabled-reason"
                 onClick={() => void addNpc()}
               >
                 {pendingAction === "add" ? "正在加入…" : "加入 NPC"}
               </button>
               <p className={styles.disabledReason} id="add-npc-disabled-reason">
-                {availableRoles.length === 0
-                  ? "角色库中没有可加入的 NPC。"
-                  : selectedRoleId
-                    ? "角色会作为全局引用加入当前世界。"
-                    : "请先选择一个尚未加入的全局角色。"}
+                {npcLimitReached
+                  ? "当前世界已达到 20 个 NPC 上限，需先移除一个 NPC。"
+                  : availableRoles.length === 0
+                    ? "角色库中没有可加入的 NPC。"
+                    : selectedRoleId
+                      ? "角色会作为全局引用加入当前世界。"
+                      : "请先选择一个尚未加入的全局角色。"}
               </p>
             </div>
           </section>
 
           {actionError && (
-            <p className={styles.errorBanner} role="alert">
-              {actionError}
-            </p>
+            <div className={styles.errorBanner} role="alert">
+              <span>{actionError}</span>
+              <button type="button" onClick={load}>
+                重新加载世界角色
+              </button>
+            </div>
           )}
           {successMessage && (
             <p className={styles.successBanner} role="status">
