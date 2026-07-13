@@ -6,6 +6,7 @@ from pydantic import JsonValue
 from sqlalchemy import JSON, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.attribute import AttributeScalar
 from app.db.models import Base
 
 
@@ -19,11 +20,11 @@ class Role(Base):
     persona: Mapped[str] = mapped_column(Text)
     system_prompt: Mapped[str] = mapped_column(Text)
     world_book: Mapped[str] = mapped_column(Text)
-    base_values_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
-    attribute_types_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
-    attribute_labels_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
-    attribute_descriptions_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
-    attribute_update_rules_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
+    base_values_json: Mapped[dict[str, AttributeScalar]] = mapped_column(JSON)
+    attribute_types_json: Mapped[dict[str, str]] = mapped_column(JSON)
+    attribute_labels_json: Mapped[dict[str, str]] = mapped_column(JSON)
+    attribute_descriptions_json: Mapped[dict[str, str]] = mapped_column(JSON)
+    attribute_update_rules_json: Mapped[dict[str, str]] = mapped_column(JSON)
     attribute_constraints_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     attribute_allowed_operations_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     attribute_examples_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
