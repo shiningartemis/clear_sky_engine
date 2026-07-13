@@ -18,6 +18,7 @@ from app.api.assets import create_asset_router
 from app.api.health import create_health_router
 from app.api.providers import create_provider_router
 from app.api.roles import create_role_router
+from app.api.worlds import create_world_router
 from app.character.service import RoleService
 from app.config import AppConfig
 from app.db.session import create_session_factory, create_sqlite_engine
@@ -26,6 +27,7 @@ from app.resources.bootstrap import ensure_default_maps
 from app.resources.catalog import ResourceCatalog
 from app.security import LocalSecurity, LocalSecurityMiddleware
 from app.static_site import configure_static_site
+from app.world.service import WorldService
 
 
 def _ignore_shutdown() -> None:
@@ -58,6 +60,7 @@ def create_app(
     session_factory = create_session_factory(engine)
     ai_settings_service = AiSettingsService(session_factory)
     role_service = RoleService(session_factory, resource_catalog)
+    world_service = WorldService(session_factory, resource_catalog)
     provider_registry: ProviderRegistry | None = None
 
     def get_provider_registry() -> ProviderRegistry:
@@ -86,6 +89,7 @@ def create_app(
     app.include_router(create_health_router(engine, resolved_config.app_version))
     app.include_router(create_provider_router(ai_settings_service, get_provider_registry))
     app.include_router(create_role_router(role_service))
+    app.include_router(create_world_router(world_service))
     app.include_router(create_asset_router(resource_catalog))
     shutdown_token = security.shutdown_token if security else SecretStr(secrets.token_urlsafe(32))
     app.include_router(create_application_router(shutdown_token, shutdown_callback))

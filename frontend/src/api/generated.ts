@@ -234,6 +234,145 @@ export interface paths {
         patch: operations["update_role_api_roles__role_id__patch"];
         trace?: never;
     };
+    "/api/worlds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Worlds */
+        get: operations["list_worlds_api_worlds_get"];
+        put?: never;
+        /** Create World */
+        post: operations["create_world_api_worlds_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete World */
+        delete: operations["delete_world_api_worlds__world_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/game-view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Game View */
+        get: operations["get_game_view_api_worlds__world_id__game_view_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Select Location */
+        post: operations["select_location_api_worlds__world_id__location_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List World Roles */
+        get: operations["list_world_roles_api_worlds__world_id__roles_get"];
+        put?: never;
+        /** Add World Role */
+        post: operations["add_world_role_api_worlds__world_id__roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/roles/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove World Role */
+        delete: operations["remove_world_role_api_worlds__world_id__roles__role_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update World Role */
+        patch: operations["update_world_role_api_worlds__world_id__roles__role_id__patch"];
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/roles/{role_id}/effective-attributes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Effective Attributes */
+        get: operations["read_effective_attributes_api_worlds__world_id__roles__role_id__effective_attributes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/roles/{role_id}/location-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace Location Rules */
+        put: operations["replace_location_rules_api_worlds__world_id__roles__role_id__location_rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -311,6 +450,41 @@ export interface components {
             success: boolean;
             usage: components["schemas"]["TokenUsage"] | null;
         };
+        /** EffectiveAttributesResponse */
+        EffectiveAttributesResponse: {
+            /** Role Id */
+            role_id: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Values */
+            values: {
+                [key: string]: number | string | boolean;
+            };
+            /** World Id */
+            world_id: number;
+        };
+        /** GameViewResponse */
+        GameViewResponse: {
+            /** Background Url */
+            background_url: string;
+            /** Fallback Background Url */
+            fallback_background_url: string;
+            /** Locations */
+            locations: components["schemas"]["MapLocationResponse"][];
+            /** Player Location Id */
+            player_location_id: string;
+            /** Player Marker Url */
+            player_marker_url: string;
+            /** Scene Id */
+            scene_id: string;
+            /** Visible Roles */
+            visible_roles: components["schemas"]["WorldRoleResponse"][];
+            /** World Id */
+            world_id: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -334,6 +508,78 @@ export interface components {
             status: "ok";
         };
         JsonValue: unknown;
+        /** LocationCandidateCreate */
+        LocationCandidateCreate: {
+            /**
+             * Location Id
+             * @enum {string}
+             */
+            location_id: "the_home" | "the_dungeon" | "the_mall" | "the_guild" | "the_hotel" | "the_school";
+            /** Weight */
+            weight: number;
+        };
+        /** LocationRuleCreate */
+        LocationRuleCreate: {
+            /** Candidates */
+            candidates: components["schemas"]["LocationCandidateCreate"][];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "fixed" | "random";
+            /** Priority */
+            priority: number;
+            /**
+             * Time Slot
+             * @enum {string}
+             */
+            time_slot: "morning" | "midday" | "evening" | "night";
+            /** Weekday Mask */
+            weekday_mask: number;
+        };
+        /** LocationRuleResponse */
+        LocationRuleResponse: {
+            /** Candidates */
+            candidates: components["schemas"]["LocationCandidateCreate"][];
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "fixed" | "random";
+            /** Priority */
+            priority: number;
+            /** Role Id */
+            role_id: number;
+            /**
+             * Time Slot
+             * @enum {string}
+             */
+            time_slot: "morning" | "midday" | "evening" | "night";
+            /** Weekday Mask */
+            weekday_mask: number;
+            /** World Id */
+            world_id: number;
+        };
+        /** LocationSelection */
+        LocationSelection: {
+            /**
+             * Location Id
+             * @enum {string}
+             */
+            location_id: "the_home" | "the_dungeon" | "the_mall" | "the_guild" | "the_hotel" | "the_school";
+        };
         /** MapAnchorResponse */
         MapAnchorResponse: {
             /** X */
@@ -366,6 +612,22 @@ export interface components {
             scenes: components["schemas"]["MapAssetResponse"][];
             /** Version */
             version: number;
+        };
+        /** MapLocationResponse */
+        MapLocationResponse: {
+            /** Anchor X */
+            anchor_x: number;
+            /** Anchor Y */
+            anchor_y: number;
+            /** Display Name */
+            display_name: string;
+            /** Order */
+            order: number;
+            /**
+             * Scene Id
+             * @enum {string}
+             */
+            scene_id: "the_home" | "the_dungeon" | "the_mall" | "the_guild" | "the_hotel" | "the_school";
         };
         /** ModelCreate */
         ModelCreate: {
@@ -605,6 +867,75 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WorldCreate */
+        WorldCreate: {
+            /** Protagonist Name */
+            protagonist_name: string;
+            /** Protagonist Persona */
+            protagonist_persona: string;
+        };
+        /** WorldResponse */
+        WorldResponse: {
+            /** Active Branch Id */
+            active_branch_id: number;
+            /** Day */
+            day: number;
+            /** Display Name */
+            display_name: string;
+            /** Id */
+            id: number;
+            /**
+             * Last Played At
+             * Format: date-time
+             */
+            last_played_at: string;
+            /** Npc Count */
+            npc_count: number;
+            player_role: components["schemas"]["RoleResponse"];
+            /** Time Slot */
+            time_slot: string;
+            /** Weekday */
+            weekday: string;
+        };
+        /** WorldRoleAdd */
+        WorldRoleAdd: {
+            /** Role Id */
+            role_id: number;
+        };
+        /** WorldRoleEnabledUpdate */
+        WorldRoleEnabledUpdate: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** WorldRoleResponse */
+        WorldRoleResponse: {
+            /** Effective Attributes */
+            effective_attributes: {
+                [key: string]: number | string | boolean;
+            };
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "player" | "npc";
+            /** Name */
+            name: string;
+            /** Portrait Url */
+            portrait_url: string;
+            /** Role Id */
+            role_id: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+            /** World Id */
+            world_id: number;
         };
     };
     responses: never;
@@ -1247,6 +1578,356 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_worlds_api_worlds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldResponse"][];
+                };
+            };
+        };
+    };
+    create_world_api_worlds_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_world_api_worlds__world_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_game_view_api_worlds__world_id__game_view_get: {
+        parameters: {
+            query: {
+                scene_id: string;
+            };
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_location_api_worlds__world_id__location_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_world_roles_api_worlds__world_id__roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldRoleResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_world_role_api_worlds__world_id__roles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldRoleAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldRoleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_world_role_api_worlds__world_id__roles__role_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_world_role_api_worlds__world_id__roles__role_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldRoleEnabledUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldRoleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_effective_attributes_api_worlds__world_id__roles__role_id__effective_attributes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EffectiveAttributesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_location_rules_api_worlds__world_id__roles__role_id__location_rules_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+                role_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationRuleCreate"][];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationRuleResponse"][];
                 };
             };
             /** @description Validation Error */
