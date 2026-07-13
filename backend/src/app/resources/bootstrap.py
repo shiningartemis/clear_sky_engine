@@ -1,17 +1,29 @@
 """首次启动时准备可替换的默认地图。"""
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
-from app.resources.catalog import MAP_EXTENSIONS, InvalidResourceNameError, safe_child
+from app.resources.catalog import (
+    MAP_EXTENSIONS,
+    InvalidResourceNameError,
+    safe_child,
+    safe_content_root,
+)
 
 
-def ensure_default_maps(default_maps_dir: Path, maps_dir: Path) -> None:
+def ensure_default_maps(
+    default_maps_dir: Path,
+    maps_dir: Path,
+    *,
+    before_copy: Callable[[Path], None] | None = None,
+) -> None:
     """只补齐缺失文件主体；任何现有 JPG 或 PNG 都代表用户已接管该地图。"""
 
     resolved_defaults = default_maps_dir.resolve()
-    maps_dir.mkdir(parents=True, exist_ok=True)
-    resolved_target = maps_dir.resolve()
+    target = safe_content_root(maps_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    resolved_target = safe_content_root(target)
     copied_stems: set[str] = set()
     for source_entry in sorted(resolved_defaults.iterdir(), key=lambda path: path.name):
         extension = source_entry.suffix.lower()
@@ -27,5 +39,11 @@ def ensure_default_maps(default_maps_dir: Path, maps_dir: Path) -> None:
         ):
             continue
         destination = safe_child(resolved_target, source_entry.name)
-        # copy2 只在目标不存在时执行；启动升级绝不能覆盖用户替换的同名资源。
-        shutil.copy2(source, destination)
+        if before_copy is not None:
+            before_copy(destination)
+        try:
+            # xb 把“目标仍不存在”与创建合并为一个原子文件操作，竞态失败时保留用户内容。
+            with source.open("rb") as source_file, destination.open("xb") as destination_file:
+                shutil.copyfileobj(source_file, destination_file)
+        except FileExistsError:
+            continue
