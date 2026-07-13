@@ -14,10 +14,14 @@ from app.ai.deepseek import DeepSeekProvider
 from app.ai.openai_compatible import OpenAICompatibleProvider
 from app.ai.service import AiSettingsService
 from app.api.application import create_application_router
+from app.api.assets import create_asset_router
 from app.api.health import create_health_router
 from app.api.providers import create_provider_router
 from app.config import AppConfig
 from app.db.session import create_session_factory, create_sqlite_engine
+from app.resources import resource_root
+from app.resources.bootstrap import ensure_default_maps
+from app.resources.catalog import ResourceCatalog
 from app.security import LocalSecurity, LocalSecurityMiddleware
 from app.static_site import configure_static_site
 
@@ -32,11 +36,22 @@ def create_app(
     security: LocalSecurity | None = None,
     shutdown_callback: Callable[[], None] = _ignore_shutdown,
     static_dir: Path | None = None,
+    resource_directory: Path | None = None,
 ) -> FastAPI:
     """创建进程内唯一应用；测试可传隔离目录，避免触碰真实用户数据。"""
 
     resolved_config = config or AppConfig.for_local_app_data()
     resolved_config.paths.create_directories()
+    runtime_root = resource_directory or resource_root()
+    default_maps_dir = (
+        runtime_root / "backend" / "src" / "app" / "resources" / "default_content" / "maps"
+    )
+    ensure_default_maps(default_maps_dir, resolved_config.paths.maps_dir)
+    resource_catalog = ResourceCatalog(
+        resolved_config.paths.maps_dir,
+        resolved_config.paths.characters_dir,
+        default_maps_dir,
+    )
     engine = create_sqlite_engine(resolved_config.paths.database_path)
     ai_settings_service = AiSettingsService(create_session_factory(engine))
     provider_registry: ProviderRegistry | None = None
@@ -66,6 +81,7 @@ def create_app(
     )
     app.include_router(create_health_router(engine, resolved_config.app_version))
     app.include_router(create_provider_router(ai_settings_service, get_provider_registry))
+    app.include_router(create_asset_router(resource_catalog))
     shutdown_token = security.shutdown_token if security else SecretStr(secrets.token_urlsafe(32))
     app.include_router(create_application_router(shutdown_token, shutdown_callback))
     if static_dir is not None:

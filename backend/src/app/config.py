@@ -17,6 +17,7 @@ class AppPaths(BaseModel):
     root: Path
     database_path: Path
     maps_dir: Path
+    characters_dir: Path
     logs_dir: Path
     backups_dir: Path
 
@@ -33,6 +34,7 @@ class AppPaths(BaseModel):
             root=root,
             database_path=root / "data" / "app.db",
             maps_dir=root / "content" / "maps",
+            characters_dir=root / "content" / "characters",
             logs_dir=root / "logs",
             backups_dir=root / "backups",
         )
@@ -43,6 +45,7 @@ class AppPaths(BaseModel):
         for directory in (
             self.database_path.parent,
             self.maps_dir,
+            self.characters_dir,
             self.logs_dir,
             self.backups_dir,
         ):

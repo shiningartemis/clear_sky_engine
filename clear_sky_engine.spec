@@ -10,6 +10,10 @@ data_files = [
         str(project_root / "backend" / "src" / "app" / "static"),
         "backend/src/app/static",
     ),
+    (
+        str(project_root / "backend" / "src" / "app" / "resources" / "default_content"),
+        "backend/src/app/resources/default_content",
+    ),
 ]
 data_files += collect_data_files("alembic")
 

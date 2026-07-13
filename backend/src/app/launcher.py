@@ -68,30 +68,33 @@ def prepare_database(
     *,
     backup: BackupFunction = backup_database,
     upgrade: UpgradeFunction = upgrade_database,
+    resource_directory: Path | None = None,
 ) -> None:
     """备份必须先于迁移，升级失败时保留原始数据库副本。"""
 
     config.paths.create_directories()
     backup(config.paths.database_path, config.paths.backups_dir)
-    alembic_ini_path = resource_root() / "alembic.ini"
+    alembic_ini_path = (resource_directory or resource_root()) / "alembic.ini"
     upgrade(config.paths.database_path, alembic_ini_path)
 
 
 def _run_application(config: AppConfig, *, smoke_test: bool) -> None:
     """启动服务线程，并由主线程协调浏览器、自检与安全退出。"""
 
-    prepare_database(config)
+    runtime_root = resource_root()
+    prepare_database(config, resource_directory=runtime_root)
     print(f"SQLite {sqlite3.sqlite_version}")
 
     port = select_loopback_port()
     security = LocalSecurity(port=port, shutdown_token=SecretStr(secrets.token_urlsafe(32)))
     shutdown_requested = threading.Event()
-    static_dir = resource_root() / "backend" / "src" / "app" / "static"
+    static_dir = runtime_root / "backend" / "src" / "app" / "static"
     app = create_app(
         config,
         security=security,
         shutdown_callback=shutdown_requested.set,
         static_dir=static_dir,
+        resource_directory=runtime_root,
     )
     server = uvicorn.Server(build_server_config(app, port))
     server_thread = threading.Thread(target=server.run, name="clear-sky-uvicorn")

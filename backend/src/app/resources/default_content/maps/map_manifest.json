@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "scenes": [
+    {"scene_id":"the_world_map","display_name":"总地图","kind":"the_world_map","file_stem":"总地图","order":0,"anchor":null},
+    {"scene_id":"the_home","display_name":"家","kind":"location","file_stem":"家","order":1,"anchor":{"x":0.15,"y":0.72}},
+    {"scene_id":"the_dungeon","display_name":"地下城","kind":"location","file_stem":"地下城","order":2,"anchor":{"x":0.30,"y":0.55}},
+    {"scene_id":"the_mall","display_name":"商店街","kind":"location","file_stem":"商店街","order":3,"anchor":{"x":0.44,"y":0.68}},
+    {"scene_id":"the_guild","display_name":"冒险者工会","kind":"location","file_stem":"冒险者工会","order":4,"anchor":{"x":0.58,"y":0.50}},
+    {"scene_id":"the_hotel","display_name":"旅店","kind":"location","file_stem":"旅店","order":5,"anchor":{"x":0.72,"y":0.66}},
+    {"scene_id":"the_school","display_name":"学校","kind":"location","file_stem":"学校","order":6,"anchor":{"x":0.85,"y":0.48}}
+  ]
+}

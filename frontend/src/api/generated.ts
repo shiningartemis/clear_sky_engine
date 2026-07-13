@@ -21,6 +21,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assets/characters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Character Assets */
+        get: operations["_list_character_assets_api_assets_characters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assets/characters/{role_name}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Default Portrait */
+        get: operations["_get_default_portrait_api_assets_characters__role_name__default_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assets/maps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Maps */
+        get: operations["_list_maps_api_assets_maps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assets/maps/{scene_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Map */
+        get: operations["_get_map_api_assets_maps__scene_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -138,6 +206,13 @@ export interface components {
          * @enum {string}
          */
         AiErrorCategory: "invalid_request" | "authentication" | "insufficient_balance" | "rate_limited" | "timeout" | "network" | "unavailable" | "invalid_response" | "cancelled";
+        /** CharacterAssetResponse */
+        CharacterAssetResponse: {
+            /** Portrait Url */
+            portrait_url: string;
+            /** Role Name */
+            role_name: string;
+        };
         /** ConnectionTestRequest */
         ConnectionTestRequest: {
             /** Model Id */
@@ -186,6 +261,39 @@ export interface components {
             status: "ok";
         };
         JsonValue: unknown;
+        /** MapAnchorResponse */
+        MapAnchorResponse: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** MapAssetResponse */
+        MapAssetResponse: {
+            anchor: components["schemas"]["MapAnchorResponse"] | null;
+            /** Display Name */
+            display_name: string;
+            /** Fallback Image Url */
+            fallback_image_url: string;
+            /** Image Url */
+            image_url: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "the_world_map" | "location";
+            /** Order */
+            order: number;
+            /** Scene Id */
+            scene_id: string;
+        };
+        /** MapCatalogResponse */
+        MapCatalogResponse: {
+            /** Scenes */
+            scenes: components["schemas"]["MapAssetResponse"][];
+            /** Version */
+            version: number;
+        };
         /** ModelCreate */
         ModelCreate: {
             /** Capabilities */
@@ -387,6 +495,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShutdownResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _list_character_assets_api_assets_characters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CharacterAssetResponse"][];
+                };
+            };
+        };
+    };
+    _get_default_portrait_api_assets_characters__role_name__default_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    _list_maps_api_assets_maps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapCatalogResponse"];
+                };
+            };
+        };
+    };
+    _get_map_api_assets_maps__scene_id__get: {
+        parameters: {
+            query?: {
+                default?: boolean;
+            };
+            header?: never;
+            path: {
+                scene_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

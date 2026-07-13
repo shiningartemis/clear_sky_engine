@@ -9,6 +9,7 @@ def test_app_paths_are_derived_from_local_app_data(tmp_path: Path) -> None:
     assert paths.root == tmp_path / "ClearSkyEngine"
     assert paths.database_path == paths.root / "data" / "app.db"
     assert paths.maps_dir == paths.root / "content" / "maps"
+    assert paths.characters_dir == paths.root / "content" / "characters"
     assert paths.logs_dir == paths.root / "logs"
     assert paths.backups_dir == paths.root / "backups"
 
@@ -20,6 +21,7 @@ def test_app_paths_create_all_writable_directories(tmp_path: Path) -> None:
 
     assert paths.database_path.parent.is_dir()
     assert paths.maps_dir.is_dir()
+    assert paths.characters_dir.is_dir()
     assert paths.logs_dir.is_dir()
     assert paths.backups_dir.is_dir()
 
