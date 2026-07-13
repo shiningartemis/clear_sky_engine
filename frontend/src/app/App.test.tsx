@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AiSettingsApi } from "../api/aiSettings";
 import type { HealthResponse } from "../api/health";
+import type { RolesApi } from "../api/roles";
 import { App } from "./App";
 
 const healthyResponse: HealthResponse = {
@@ -96,5 +97,24 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Provider 与模型" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders the role library route with its injected API", async () => {
+    const rolesApi: RolesApi = {
+      listAssets: vi.fn().mockResolvedValue([]),
+      listRoles: vi.fn().mockResolvedValue([]),
+      createRole: vi.fn(),
+      updateRole: vi.fn(),
+      deleteRole: vi.fn(),
+    };
+
+    render(
+      <MemoryRouter initialEntries={["/roles"]}>
+        <App rolesApi={rolesApi} />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("角色库还是空的")).toBeInTheDocument();
+    expect(rolesApi.listRoles).toHaveBeenCalledTimes(1);
   });
 });

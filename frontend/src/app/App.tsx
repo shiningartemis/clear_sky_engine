@@ -3,7 +3,9 @@ import { Link, Route, Routes } from "react-router-dom";
 
 import type { AiSettingsApi } from "../api/aiSettings";
 import { fetchHealth, type HealthResponse } from "../api/health";
+import type { RolesApi } from "../api/roles";
 import { AiSettingsPage } from "../features/ai-settings/AiSettingsPage";
+import { RoleLibraryPage } from "../features/roles/RoleLibraryPage";
 import type { GameBridgePort } from "../game/GameBridge";
 import styles from "./App.module.css";
 
@@ -13,6 +15,7 @@ interface AppProps {
   loadHealth?: HealthLoader;
   createGameBridge?: () => GameBridgePort;
   settingsApi?: AiSettingsApi;
+  rolesApi?: RolesApi;
 }
 
 type HealthState =
@@ -138,6 +141,7 @@ export function App({
   loadHealth = fetchHealth,
   createGameBridge,
   settingsApi,
+  rolesApi,
 }: AppProps) {
   return (
     <Routes>
@@ -154,6 +158,7 @@ export function App({
         path="/settings/ai"
         element={<AiSettingsPage api={settingsApi} />}
       />
+      <Route path="/roles" element={<RoleLibraryPage api={rolesApi} />} />
     </Routes>
   );
 }
