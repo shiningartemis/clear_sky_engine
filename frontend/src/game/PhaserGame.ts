@@ -2,6 +2,15 @@ import Phaser from "phaser";
 
 import { GameBridge } from "./GameBridge";
 import {
+  clearFailedMapAssets,
+  clearFailedMarkerAsset,
+  type SceneAssetState,
+} from "./mapSceneAssets";
+import {
+  calculateLocationOverlayGeometry,
+  hitTestLocationOverlay,
+} from "./mapSceneGeometry";
+import {
   calculateCoverTransform,
   type GameEvent,
   type GameViewState,
@@ -64,7 +73,7 @@ export class MapScene extends Phaser.Scene {
   private marker: Phaser.GameObjects.Image | null = null;
   private backgroundImage: LoadedImage | null = null;
   private markerImage: LoadedImage | null = null;
-  private locationLabels: Phaser.GameObjects.Text[] = [];
+  private locationOverlays: Phaser.GameObjects.GameObject[] = [];
   private assetGeneration = 0;
   private textureSequence = 0;
   private backgroundTextureKey: string | null = null;
@@ -114,21 +123,56 @@ export class MapScene extends Phaser.Scene {
     )
       return;
 
-    if (backgroundImage) {
-      this.installBackground(backgroundImage);
-    } else {
-      this.background?.destroy();
-      this.background = null;
-      this.backgroundImage = null;
+    if (!backgroundImage) {
+      // 最终 fallback 也失败时集中清空旧场景；generation 校验必须先于此处，避免误清新视图。
+      this.applyAssetState(
+        clearFailedMapAssets(this.assetState(), this.textures),
+      );
+      return;
     }
+    this.installBackground(backgroundImage);
     if (markerImage) {
       this.installMarker(markerImage);
     } else {
-      this.marker?.destroy();
-      this.marker = null;
-      this.markerImage = null;
+      this.applyAssetState(
+        clearFailedMarkerAsset(this.assetState(), this.textures),
+      );
     }
     this.renderLayout();
+  }
+
+  private assetState(): SceneAssetState<
+    Phaser.GameObjects.Image,
+    Phaser.GameObjects.Image,
+    Phaser.GameObjects.GameObject,
+    LoadedImage
+  > {
+    return {
+      background: this.background,
+      marker: this.marker,
+      locationOverlays: this.locationOverlays,
+      backgroundImage: this.backgroundImage,
+      markerImage: this.markerImage,
+      backgroundTextureKey: this.backgroundTextureKey,
+      markerTextureKey: this.markerTextureKey,
+    };
+  }
+
+  private applyAssetState(
+    assets: SceneAssetState<
+      Phaser.GameObjects.Image,
+      Phaser.GameObjects.Image,
+      Phaser.GameObjects.GameObject,
+      LoadedImage
+    >,
+  ): void {
+    this.background = assets.background;
+    this.marker = assets.marker;
+    this.locationOverlays = assets.locationOverlays;
+    this.backgroundImage = assets.backgroundImage;
+    this.markerImage = assets.markerImage;
+    this.backgroundTextureKey = assets.backgroundTextureKey;
+    this.markerTextureKey = assets.markerTextureKey;
   }
 
   private installBackground(image: LoadedImage): void {
@@ -170,24 +214,46 @@ export class MapScene extends Phaser.Scene {
       ?.setPosition(transform.offsetX, transform.offsetY)
       .setScale(transform.scale);
 
-    for (const label of this.locationLabels) label.destroy();
-    this.locationLabels = [];
+    for (const overlay of this.locationOverlays) overlay.destroy();
+    this.locationOverlays = [];
     if (view.sceneId === "the_world_map") {
       for (const location of view.locations) {
-        const point = projectAnchor(
+        const geometry = calculateLocationOverlayGeometry(
           location.anchor,
           backgroundImage,
           transform,
+          viewportWidth,
+          viewportHeight,
+          location.displayName,
         );
-        this.locationLabels.push(
+        this.locationOverlays.push(
           this.add
-            .text(point.x, point.y + 58, location.displayName, {
+            .circle(
+              geometry.marker.x,
+              geometry.marker.y,
+              geometry.marker.radius,
+              0x8fd3ff,
+              0.82,
+            )
+            .setStrokeStyle(
+              Math.max(1, 2 * geometry.viewportScale),
+              0xffffff,
+              0.9,
+            )
+            .setDepth(1),
+          this.add
+            .text(geometry.label.x, geometry.label.y, location.displayName, {
               color: "#edf6ff",
               fontFamily: "Segoe UI, sans-serif",
-              fontSize: "18px",
+              fontSize: `${18 * geometry.viewportScale}px`,
               backgroundColor: "rgba(7, 19, 34, 0.78)",
-              padding: { x: 10, y: 5 },
+              align: "center",
+              padding: {
+                x: 10 * geometry.viewportScale,
+                y: 5 * geometry.viewportScale,
+              },
             })
+            .setFixedSize(geometry.label.width, geometry.label.height)
             .setOrigin(0.5)
             .setDepth(1),
         );
@@ -288,15 +354,17 @@ export class MapScene extends Phaser.Scene {
       this.scale.gameSize.width,
       this.scale.gameSize.height,
     );
-    const logicalScale = Math.min(
-      this.scale.gameSize.width / LOGICAL_WIDTH,
-      this.scale.gameSize.height / LOGICAL_HEIGHT,
-    );
-    const hitRadius = MARKER_SIZE * logicalScale;
     const selected = view.locations.find((location) => {
-      // 点击区与绘制必须共用同一投影，非 16:9 视口裁切后才不会错位。
-      const point = projectAnchor(location.anchor, backgroundImage, transform);
-      return Math.hypot(pointer.x - point.x, pointer.y - point.y) <= hitRadius;
+      // marker、标签与点击区共用同一几何，resize 或 cover 裁切后不会错位。
+      const geometry = calculateLocationOverlayGeometry(
+        location.anchor,
+        backgroundImage,
+        transform,
+        this.scale.gameSize.width,
+        this.scale.gameSize.height,
+        location.displayName,
+      );
+      return hitTestLocationOverlay(pointer, geometry);
     });
     if (selected) {
       this.dispatchWorldMap({ type: "select", locationId: selected.sceneId });
@@ -315,8 +383,9 @@ export class MapScene extends Phaser.Scene {
     this.input.keyboard?.off("keydown", this.handleKeyDown);
     this.input.off("pointerdown", this.handlePointerDown);
     this.scale.off("resize", this.handleResize);
-    for (const label of this.locationLabels) label.destroy();
-    this.locationLabels = [];
+    this.applyAssetState(
+      clearFailedMapAssets(this.assetState(), this.textures),
+    );
   }
 }
 

@@ -15,9 +15,9 @@ interface GamePageProps {
 }
 
 type PageState =
-  | { kind: "loading" }
+  | { kind: "loading"; message: string }
   | { kind: "invalid" }
-  | { kind: "error"; retrySceneId: SceneId }
+  | { kind: "error"; title: string; retrySceneId: SceneId }
   | { kind: "ready"; view: GameViewResponse };
 
 export function GamePage({
@@ -28,7 +28,9 @@ export function GamePage({
   const worldId = Number(worldIdParam);
   const validWorldId = Number.isInteger(worldId) && worldId > 0;
   const [state, setState] = useState<PageState>(
-    validWorldId ? { kind: "loading" } : { kind: "invalid" },
+    validWorldId
+      ? { kind: "loading", message: "正在加载地图…" }
+      : { kind: "invalid" },
   );
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const bridgeRef = useRef<GameBridgePort | null>(null);
@@ -36,6 +38,7 @@ export function GamePage({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const activeController = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
+  const locationWritePending = useRef(false);
 
   const loadScene = useCallback(
     (sceneId: SceneId) => {
@@ -43,12 +46,13 @@ export function GamePage({
         setState({ kind: "invalid" });
         return;
       }
+      locationWritePending.current = false;
       activeController.current?.abort();
       const controller = new AbortController();
       activeController.current = controller;
       const generation = requestGeneration.current + 1;
       requestGeneration.current = generation;
-      setState({ kind: "loading" });
+      setState({ kind: "loading", message: "正在加载地图…" });
 
       void api.getGameView(worldId, sceneId, controller.signal).then(
         (view) => {
@@ -65,7 +69,11 @@ export function GamePage({
             activeController.current === controller &&
             !controller.signal.aborted
           ) {
-            setState({ kind: "error", retrySceneId: sceneId });
+            setState({
+              kind: "error",
+              title: "无法加载地图",
+              retrySceneId: sceneId,
+            });
           }
         },
       );
@@ -75,21 +83,29 @@ export function GamePage({
 
   const selectLocation = useCallback(
     (locationId: Parameters<WorldsApi["selectLocation"]>[1]) => {
-      if (!validWorldId) return;
+      if (!validWorldId || locationWritePending.current) return;
+      // POST 不能取消；在权威响应返回前串行化位置写入，避免旧请求晚到覆盖新选择。
+      locationWritePending.current = true;
       activeController.current?.abort();
       activeController.current = null;
       const generation = requestGeneration.current + 1;
       requestGeneration.current = generation;
-      setState({ kind: "loading" });
+      setState({ kind: "loading", message: "正在移动到所选地点…" });
       void api.selectLocation(worldId, locationId).then(
         (view) => {
           if (requestGeneration.current === generation) {
+            locationWritePending.current = false;
             setState({ kind: "ready", view });
           }
         },
         () => {
           if (requestGeneration.current === generation) {
-            setState({ kind: "error", retrySceneId: "the_world_map" });
+            locationWritePending.current = false;
+            setState({
+              kind: "error",
+              title: "无法移动到地点",
+              retrySceneId: "the_world_map",
+            });
           }
         },
       );
@@ -101,6 +117,7 @@ export function GamePage({
     loadScene("the_world_map");
     return () => {
       requestGeneration.current += 1;
+      locationWritePending.current = false;
       activeController.current?.abort();
       activeController.current = null;
     };
@@ -111,6 +128,7 @@ export function GamePage({
     const container = containerRef.current;
     if (!validWorldId || !bridge || !container) return;
     const unsubscribe = bridge.subscribe((event: GameEvent) => {
+      if (locationWritePending.current) return;
       if (event.type === "select_location") {
         selectLocation(event.locationId);
       } else if (event.type === "enter_location") {
@@ -132,7 +150,11 @@ export function GamePage({
         // Phaser 只接收后端事实的窄化视图，角色可见性仍由 React 使用原响应渲染。
         bridgeRef.current?.update(toGameViewState(state.view));
       } catch {
-        setState({ kind: "error", retrySceneId: "the_world_map" });
+        setState({
+          kind: "error",
+          title: "无法加载地图",
+          retrySceneId: "the_world_map",
+        });
       }
     }
   }, [state]);
@@ -153,14 +175,17 @@ export function GamePage({
     <main className={styles.page}>
       <div
         ref={containerRef}
-        className={styles.gameCanvas}
+        className={`${styles.gameCanvas} ${
+          state.kind === "loading" ? styles.gameCanvasBusy : ""
+        }`}
         role="img"
         aria-label={readyView ? "游戏地图" : "地图画布"}
+        aria-busy={state.kind === "loading"}
       />
 
       {state.kind === "loading" && (
         <p className={styles.statusPanel} aria-live="polite">
-          正在加载地图…
+          {state.message}
         </p>
       )}
       {state.kind === "invalid" && (
@@ -171,7 +196,7 @@ export function GamePage({
       )}
       {state.kind === "error" && (
         <section className={styles.statusPanel} role="alert">
-          <h1>无法加载地图</h1>
+          <h1>{state.title}</h1>
           <p>世界位置没有被更改，请检查本地服务后重试。</p>
           <button type="button" onClick={() => loadScene(state.retrySceneId)}>
             重试

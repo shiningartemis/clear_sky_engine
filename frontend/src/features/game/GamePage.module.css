@@ -15,6 +15,10 @@
   display: block;
 }
 
+.gameCanvasBusy {
+  pointer-events: none;
+}
+
 .statusPanel,
 .resizeWarning {
   position: absolute;

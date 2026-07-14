@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -77,6 +77,24 @@ function createWorldsApi(overrides: Partial<WorldsApi> = {}): WorldsApi {
   };
 }
 
+function deferred<T>() {
+  let resolvePromise: ((value: T) => void) | undefined;
+  let rejectPromise: ((reason?: unknown) => void) | undefined;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return {
+    promise,
+    resolve(value: T) {
+      resolvePromise?.(value);
+    },
+    reject(reason?: unknown) {
+      rejectPromise?.(reason);
+    },
+  };
+}
+
 class FakeBridge implements GameBridgePort {
   readonly mount = vi.fn();
   readonly update = vi.fn<(state: GameViewState) => void>();
@@ -125,27 +143,29 @@ describe("GamePage", () => {
       "the_world_map",
       expect.any(AbortSignal),
     );
-    expect(bridge.update).toHaveBeenCalledWith({
-      sceneId: "the_world_map",
-      backgroundUrl: "/maps/the_world_map.jpg",
-      fallbackBackgroundUrl: "/maps/fallback.jpg",
-      playerMarkerUrl: "/portraits/player.png",
-      playerLocationId: "the_home",
-      locations: [
-        {
-          sceneId: "the_home",
-          displayName: "家",
-          order: 0,
-          anchor: { x: 0.2, y: 0.5 },
-        },
-        {
-          sceneId: "the_school",
-          displayName: "学校",
-          order: 5,
-          anchor: { x: 0.8, y: 0.5 },
-        },
-      ],
-    });
+    await waitFor(() =>
+      expect(bridge.update).toHaveBeenCalledWith({
+        sceneId: "the_world_map",
+        backgroundUrl: "/maps/the_world_map.jpg",
+        fallbackBackgroundUrl: "/maps/fallback.jpg",
+        playerMarkerUrl: "/portraits/player.png",
+        playerLocationId: "the_home",
+        locations: [
+          {
+            sceneId: "the_home",
+            displayName: "家",
+            order: 0,
+            anchor: { x: 0.2, y: 0.5 },
+          },
+          {
+            sceneId: "the_school",
+            displayName: "学校",
+            order: 5,
+            anchor: { x: 0.8, y: 0.5 },
+          },
+        ],
+      }),
+    );
     expect(screen.queryByLabelText("当前地点角色")).not.toBeInTheDocument();
   });
 
@@ -177,6 +197,61 @@ describe("GamePage", () => {
     );
     expect(await screen.findByLabelText("当前地点角色")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "天" })).toBeInTheDocument();
+  });
+
+  it("serializes location writes and unlocks after the authoritative response", async () => {
+    const pendingSelection = deferred<GameViewResponse>();
+    const selectLocation = vi
+      .fn<WorldsApi["selectLocation"]>()
+      .mockImplementationOnce(() => pendingSelection.promise)
+      .mockResolvedValueOnce(gameView("the_world_map", "the_home"));
+    const bridge = renderGame(createWorldsApi({ selectLocation }));
+    await screen.findByLabelText("游戏地图");
+
+    act(() =>
+      bridge.emit({ type: "select_location", locationId: "the_school" }),
+    );
+    expect(screen.getByText("正在移动到所选地点…")).toBeInTheDocument();
+    expect(screen.getByLabelText("地图画布")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    act(() => bridge.emit({ type: "select_location", locationId: "the_home" }));
+    expect(selectLocation).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      pendingSelection.resolve(gameView("the_world_map", "the_school"));
+      await pendingSelection.promise;
+    });
+    expect(await screen.findByLabelText("游戏地图")).toBeInTheDocument();
+
+    act(() => bridge.emit({ type: "select_location", locationId: "the_home" }));
+    expect(selectLocation).toHaveBeenCalledTimes(2);
+  });
+
+  it("unlocks location writes after a failed selection so the player can retry", async () => {
+    const pendingSelection = deferred<GameViewResponse>();
+    const selectLocation = vi
+      .fn<WorldsApi["selectLocation"]>()
+      .mockImplementationOnce(() => pendingSelection.promise)
+      .mockResolvedValueOnce(gameView("the_world_map", "the_school"));
+    const bridge = renderGame(createWorldsApi({ selectLocation }));
+    await screen.findByLabelText("游戏地图");
+
+    act(() =>
+      bridge.emit({ type: "select_location", locationId: "the_school" }),
+    );
+    await act(async () => {
+      pendingSelection.reject(new Error("conflict"));
+      await pendingSelection.promise.catch(() => undefined);
+    });
+    expect(screen.getByText("无法移动到地点")).toBeInTheDocument();
+
+    act(() =>
+      bridge.emit({ type: "select_location", locationId: "the_school" }),
+    );
+    expect(selectLocation).toHaveBeenCalledTimes(2);
   });
 
   it("returns to the world map from the React overlay button", async () => {
