@@ -66,6 +66,20 @@
   left: 28px;
 }
 
+.timePanel {
+  position: absolute;
+  z-index: 3;
+  top: 28px;
+  right: 28px;
+  margin: 0;
+  padding: 9px 18px;
+  border: 1px solid rgb(143 211 255 / 38%);
+  border-radius: 999px;
+  background: rgb(10 31 51 / 90%);
+  color: #d9f2ff;
+  font-weight: 700;
+}
+
 .portraitStrip {
   position: absolute;
   z-index: 2;
@@ -138,5 +152,10 @@
   .mapButton {
     top: 16px;
     left: 16px;
+  }
+
+  .timePanel {
+    top: 16px;
+    right: 16px;
   }
 }

@@ -20,6 +20,23 @@ type PageState =
   | { kind: "error"; title: string; retrySceneId: SceneId }
   | { kind: "ready"; view: GameViewResponse };
 
+const weekdayLabels: Readonly<Record<string, string>> = {
+  monday: "星期一",
+  tuesday: "星期二",
+  wednesday: "星期三",
+  thursday: "星期四",
+  friday: "星期五",
+  saturday: "星期六",
+  sunday: "星期日",
+};
+
+const timeSlotLabels: Readonly<Record<string, string>> = {
+  morning: "晨间",
+  midday: "午间",
+  evening: "傍晚",
+  night: "夜晚",
+};
+
 export function GamePage({
   api = worldsApi,
   createBridge = createDefaultGameBridge,
@@ -182,6 +199,17 @@ export function GamePage({
         aria-label={readyView ? "游戏地图" : "地图画布"}
         aria-busy={state.kind === "loading"}
       />
+
+      {readyView && (
+        <p className={styles.timePanel} role="status" aria-label="世界时间">
+          {"Day " +
+            readyView.day +
+            " · " +
+            (weekdayLabels[readyView.weekday] ?? readyView.weekday) +
+            " · " +
+            (timeSlotLabels[readyView.time_slot] ?? readyView.time_slot)}
+        </p>
+      )}
 
       {state.kind === "loading" && (
         <p className={styles.statusPanel} aria-live="polite">

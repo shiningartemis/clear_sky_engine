@@ -96,4 +96,20 @@ describe("GameBridge", () => {
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(destroy).toHaveBeenCalledWith(true);
   });
+
+  it("removes a stale canvas synchronously before StrictMode remounts", () => {
+    const factory = vi.fn<GameFactory>((container) => {
+      container.append(document.createElement("canvas"));
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+    const bridge = new GameBridge(factory);
+    const container = document.createElement("div");
+
+    bridge.mount(container);
+    bridge.destroy();
+    bridge.mount(container);
+
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(container.querySelectorAll("canvas")).toHaveLength(1);
+  });
 });

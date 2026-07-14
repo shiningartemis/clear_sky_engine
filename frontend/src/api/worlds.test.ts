@@ -74,6 +74,9 @@ function gameView(): GameViewResponse {
   return {
     world_id: 4,
     scene_id: "the_world_map",
+    day: 1,
+    weekday: "monday",
+    time_slot: "morning",
     background_url: "/maps/world.jpg",
     fallback_background_url: "/maps/fallback.jpg",
     player_marker_url: "/characters/tian.jpg",
@@ -213,7 +216,12 @@ describe("worldsApi", () => {
 
     await expect(
       worldsApi.selectLocation(4, "the_home"),
-    ).resolves.toMatchObject({ player_location_id: "the_home" });
+    ).resolves.toMatchObject({
+      player_location_id: "the_home",
+      day: 1,
+      weekday: "monday",
+      time_slot: "morning",
+    });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/worlds/4/location", {
       method: "POST",
@@ -238,6 +246,24 @@ describe("worldsApi", () => {
         signal: controller.signal,
       },
     );
+  });
+
+  it("rejects a game view without authoritative branch time", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        jsonResponse({
+          ...gameView(),
+          day: undefined,
+          weekday: undefined,
+          time_slot: undefined,
+        }),
+      ),
+    );
+
+    await expect(
+      worldsApi.getGameView(4, "the_world_map"),
+    ).rejects.toBeInstanceOf(ApiError);
   });
 
   it("rejects malformed world, role, rule, and game-view payloads", async () => {

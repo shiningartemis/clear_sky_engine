@@ -22,6 +22,9 @@ function gameView(
   return {
     world_id: 4,
     scene_id: sceneId,
+    day: 1,
+    weekday: "monday",
+    time_slot: "morning",
     background_url: `/maps/${sceneId}.jpg`,
     fallback_background_url: "/maps/fallback.jpg",
     player_marker_url: "/portraits/player.png",
@@ -167,6 +170,9 @@ describe("GamePage", () => {
       }),
     );
     expect(screen.queryByLabelText("当前地点角色")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("世界时间")).toHaveTextContent(
+      "Day 1 · 星期一 · 晨间",
+    );
   });
 
   it("selects a location and enters it through typed bridge events", async () => {

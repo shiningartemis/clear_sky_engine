@@ -277,7 +277,13 @@ async def test_location_selection_rejects_invalid_id_and_does_not_advance_time(
         assert invalid.status_code == 422
         assert selected.status_code == 200
         assert selected.json()["player_location_id"] == "the_school"
+        assert {key: selected.json()[key] for key in ("day", "weekday", "time_slot")} == {
+            "day": world["day"],
+            "weekday": world["weekday"],
+            "time_slot": world["time_slot"],
+        }
         assert refreshed["day"] == 1
+        assert refreshed["weekday"] == "monday"
         assert refreshed["time_slot"] == "morning"
         config = AppConfig.for_local_app_data(tmp_path)
         engine = create_sqlite_engine(config.paths.database_path)
@@ -301,6 +307,11 @@ async def test_world_map_has_player_marker_and_no_visible_portrait_strip(tmp_pat
         assert response.status_code == 200, response.text
         view = response.json()
         assert view["scene_id"] == "the_world_map"
+        assert (view["day"], view["weekday"], view["time_slot"]) == (
+            1,
+            "monday",
+            "morning",
+        )
         assert view["player_marker_url"].endswith("/%E5%A4%A9/default")
         assert view["visible_roles"] == []
         assert [item["scene_id"] for item in view["locations"]] == [

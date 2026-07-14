@@ -470,6 +470,8 @@ export interface components {
         GameViewResponse: {
             /** Background Url */
             background_url: string;
+            /** Day */
+            day: number;
             /** Fallback Background Url */
             fallback_background_url: string;
             /** Locations */
@@ -480,8 +482,12 @@ export interface components {
             player_marker_url: string;
             /** Scene Id */
             scene_id: string;
+            /** Time Slot */
+            time_slot: string;
             /** Visible Roles */
             visible_roles: components["schemas"]["WorldRoleResponse"][];
+            /** Weekday */
+            weekday: string;
             /** World Id */
             world_id: number;
         };

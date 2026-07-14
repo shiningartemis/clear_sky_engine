@@ -123,6 +123,9 @@ class MapLocationRecord:
 class GameViewRecord:
     world_id: int
     scene_id: str
+    day: int
+    weekday: str
+    time_slot: str
     background_url: str
     fallback_background_url: str
     player_marker_url: str
@@ -603,11 +606,17 @@ class WorldService:
             )
             marker_url = records[player.role_id].portrait_url
             player_location_id = branch.current_location_id
+            day = branch.day
+            weekday = weekday_for_day(branch.day)
+            time_slot = branch.time_slot
 
         image_url = f"/api/assets/maps/{scene_id}"
         return GameViewRecord(
             world_id=world_id,
             scene_id=scene_id,
+            day=day,
+            weekday=weekday,
+            time_slot=time_slot,
             background_url=image_url,
             fallback_background_url=f"{image_url}?default=true",
             player_marker_url=marker_url,

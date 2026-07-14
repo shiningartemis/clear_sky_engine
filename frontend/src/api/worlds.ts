@@ -255,6 +255,9 @@ function isGameViewResponse(value: unknown): value is GameViewResponse {
     isRecord(value) &&
     isPositiveInteger(value.world_id) &&
     isSceneId(value.scene_id) &&
+    isPositiveInteger(value.day) &&
+    isWeekday(value.weekday) &&
+    isTimeSlot(value.time_slot) &&
     typeof value.background_url === "string" &&
     typeof value.fallback_background_url === "string" &&
     typeof value.player_marker_url === "string" &&

@@ -12,6 +12,7 @@ export type GameFactory = (
 
 export class GameBridge implements GameBridgePort {
   private game: GameHandle | undefined;
+  private container: HTMLElement | undefined;
   private latestState: GameViewState | undefined;
   private readonly listeners = new Set<(event: GameEvent) => void>();
 
@@ -21,6 +22,7 @@ export class GameBridge implements GameBridgePort {
     if (this.game) return;
 
     // React 只管理容器生命周期；Phaser 场景与 Canvas 必须由桥接层统一销毁。
+    this.container = container;
     this.game = this.gameFactory(container, (event) => {
       for (const listener of this.listeners) listener(event);
     });
@@ -42,6 +44,9 @@ export class GameBridge implements GameBridgePort {
   destroy(): void {
     this.game?.destroy(true);
     this.game = undefined;
+    // Phaser 的销毁可能延迟到内部事件循环；同步清空专用容器可避免 StrictMode 重挂载留下双 Canvas。
+    this.container?.replaceChildren();
+    this.container = undefined;
     this.listeners.clear();
   }
 }

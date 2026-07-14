@@ -125,6 +125,9 @@ class WorldResponse(BaseModel):
 class GameViewResponse(BaseModel):
     world_id: int
     scene_id: str
+    day: int
+    weekday: str
+    time_slot: str
     background_url: str
     fallback_background_url: str
     player_marker_url: str
@@ -201,6 +204,9 @@ def _game_view_response(record: GameViewRecord) -> GameViewResponse:
     return GameViewResponse(
         world_id=record.world_id,
         scene_id=record.scene_id,
+        day=record.day,
+        weekday=record.weekday,
+        time_slot=record.time_slot,
         background_url=record.background_url,
         fallback_background_url=record.fallback_background_url,
         player_marker_url=record.player_marker_url,
