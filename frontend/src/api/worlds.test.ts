@@ -127,24 +127,18 @@ describe("worldsApi", () => {
     });
   });
 
-  it("creates a Monday Day 1 world through the protagonist endpoint", async () => {
+  it("creates a Monday Day 1 world by referencing an existing protagonist", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValue(jsonResponse(worldResponse(), 201));
     vi.stubGlobal("fetch", fetchMock);
 
-    await worldsApi.createWorld({
-      protagonist_name: "天",
-      protagonist_persona: "谨慎的冒险者",
-    });
+    await worldsApi.createWorld({ protagonist_role_id: 9 });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/worlds", {
       method: "POST",
       headers: jsonHeaders,
-      body: JSON.stringify({
-        protagonist_name: "天",
-        protagonist_persona: "谨慎的冒险者",
-      }),
+      body: JSON.stringify({ protagonist_role_id: 9 }),
     });
   });
 

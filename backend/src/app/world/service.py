@@ -50,12 +50,6 @@ class InvalidLocationError(ValueError):
 
 
 @dataclass(frozen=True)
-class ProtagonistDraft:
-    name: str
-    persona: str
-
-
-@dataclass(frozen=True)
 class WorldRecord:
     id: int
     display_name: str
@@ -283,38 +277,31 @@ class WorldService:
             store = WorldStore(session)
             return self._world_record(store, self._required_world(store, world_id))
 
-    def create_world(self, protagonist: ProtagonistDraft) -> WorldRecord:
-        # 默认立绘是原子创建的前置条件，文件 I/O 必须先于数据库连接。
-        self._resources.resolve_portrait(protagonist.name)
+    def create_world(self, protagonist_role_id: int) -> WorldRecord:
+        # 世界只引用全局角色；先复制资源查找所需名称，文件 I/O 不得占用 Session。
+        with self._session_factory() as session:
+            protagonist = WorldStore(session).get_role(protagonist_role_id)
+            if protagonist is None:
+                raise WorldNotFoundError("主角角色不存在")
+            protagonist_name = protagonist.name
+        self._resources.resolve_portrait(protagonist_name)
+
         now = self._clock()
         world_id: int
         with self._session_factory() as session:
             store = WorldStore(session)
             try:
-                role = Role(
-                    name=protagonist.name,
-                    persona=protagonist.persona,
-                    system_prompt="",
-                    world_book="",
-                    base_values_json={},
-                    attribute_types_json={},
-                    attribute_labels_json={},
-                    attribute_descriptions_json={},
-                    attribute_update_rules_json={},
-                    attribute_constraints_json={},
-                    attribute_allowed_operations_json={},
-                    attribute_examples_json={},
-                    version=1,
-                    created_at=now,
-                    updated_at=now,
-                )
+                # 资源检查后重新确认角色仍存在，避免并发删除留下悬空引用。
+                role = store.get_role(protagonist_role_id)
+                if role is None:
+                    raise WorldNotFoundError("主角角色不存在")
                 world = World(
                     active_branch_id=None,
                     created_at=now,
                     updated_at=now,
                     last_played_at=now,
                 )
-                store.add_all(role, world)
+                store.add_all(world)
                 store.flush()
                 branch = WorldBranch(
                     world_id=world.id,
@@ -348,7 +335,7 @@ class WorldService:
                 session.commit()
             except IntegrityError:
                 session.rollback()
-                raise WorldConflictError("主角名称已存在或世界创建冲突") from None
+                raise WorldConflictError("世界创建冲突") from None
         # 提交后使用全新 Session，禁止依赖已过期 ORM 对象。
         return self.get_world(world_id)
 

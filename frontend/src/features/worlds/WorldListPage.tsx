@@ -7,11 +7,8 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import {
-  type CharacterAssetResponse,
-  type RolesApi,
-  rolesApi,
-} from "../../api/roles";
+import { ApiError } from "../../api/health";
+import { type RoleResponse, type RolesApi, rolesApi } from "../../api/roles";
 import {
   type WorldResponse,
   type WorldsApi,
@@ -21,7 +18,7 @@ import styles from "./WorldPages.module.css";
 
 interface WorldListPageProps {
   api?: WorldsApi;
-  assetApi?: Pick<RolesApi, "listAssets">;
+  roleApi?: Pick<RolesApi, "listRoles">;
 }
 
 type LoadState =
@@ -30,7 +27,7 @@ type LoadState =
   | {
       kind: "ready";
       worlds: WorldResponse[];
-      assets: CharacterAssetResponse[];
+      roles: RoleResponse[];
     };
 
 const timeSlotLabels: Record<string, string> = {
@@ -61,13 +58,14 @@ function lastPlayedText(value: string): string {
 
 export function WorldListPage({
   api = worldsApi,
-  assetApi = rolesApi,
+  roleApi = rolesApi,
 }: WorldListPageProps) {
   const navigate = useNavigate();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [showWizard, setShowWizard] = useState(false);
-  const [protagonistName, setProtagonistName] = useState("");
-  const [protagonistPersona, setProtagonistPersona] = useState("");
+  const [protagonistRoleId, setProtagonistRoleId] = useState<number | null>(
+    null,
+  );
   const [actionError, setActionError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -90,14 +88,19 @@ export function WorldListPage({
 
     void Promise.all([
       api.listWorlds(controller.signal),
-      assetApi.listAssets(controller.signal),
+      roleApi.listRoles(controller.signal),
     ]).then(
-      ([worlds, assets]) => {
+      ([worlds, roles]) => {
         if (
           loadGeneration.current === generation &&
           activeController.current === controller
         ) {
-          setState({ kind: "ready", worlds, assets });
+          setProtagonistRoleId((current) =>
+            current !== null && roles.some((role) => role.id === current)
+              ? current
+              : null,
+          );
+          setState({ kind: "ready", worlds, roles });
         }
       },
       () => {
@@ -110,7 +113,7 @@ export function WorldListPage({
         }
       },
     );
-  }, [api, assetApi]);
+  }, [api, roleApi]);
 
   useEffect(() => {
     load();
@@ -128,7 +131,7 @@ export function WorldListPage({
 
   async function createWorld(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!protagonistName || !protagonistPersona.trim() || mutationPending) {
+    if (protagonistRoleId === null || mutationPending) {
       return;
     }
     const generation = loadGeneration.current;
@@ -136,20 +139,26 @@ export function WorldListPage({
     setActionError(null);
     try {
       const world = await api.createWorld({
-        protagonist_name: protagonistName,
-        protagonist_persona: protagonistPersona.trim(),
+        protagonist_role_id: protagonistRoleId,
       });
       if (!isCurrentPage(generation)) return;
       navigate(`/worlds/${world.id}/roles`);
-    } catch {
-      // 原子创建失败时保留表单，方便用户修正素材或重试。
+    } catch (error) {
+      // 原子创建失败时保留稳定角色 ID；后端业务错误已经过安全裁剪。
       if (isCurrentPage(generation)) {
-        setActionError("创建世界失败；输入已保留，请检查主角素材后重试。");
+        const detail =
+          error instanceof ApiError ? error.message : "请检查本地服务后重试。";
+        setActionError(`创建世界失败；已保留主角选择。${detail}`);
       }
     } finally {
       if (isCurrentPage(generation)) setCreating(false);
     }
   }
+
+  const selectedRole =
+    state.kind === "ready" && protagonistRoleId !== null
+      ? (state.roles.find((role) => role.id === protagonistRoleId) ?? null)
+      : null;
 
   async function deleteWorld(world: WorldResponse) {
     if (mutationPending) return;
@@ -201,7 +210,7 @@ export function WorldListPage({
       {state.kind === "error" && (
         <section className={styles.stateCard}>
           <h2>无法加载世界列表</h2>
-          <p>世界和主角素材都没有被更改，请检查本地服务后重试。</p>
+          <p>世界和角色库都没有被更改，请检查本地服务后重试。</p>
           <button type="button" onClick={load}>
             重试
           </button>
@@ -213,20 +222,20 @@ export function WorldListPage({
           <section className={styles.toolbar}>
             <div>
               <strong>{state.worlds.length}</strong> 个世界
-              {state.assets.length === 0 && (
+              {state.roles.length === 0 && (
                 <p
                   className={styles.disabledReason}
                   id="world-create-disabled-reason"
                 >
-                  请先在角色资源目录添加主角的同名默认立绘。
+                  请先在全局角色库创建角色并准备同名默认立绘。
                 </p>
               )}
             </div>
             <button
               type="button"
-              disabled={mutationPending || state.assets.length === 0}
+              disabled={mutationPending || state.roles.length === 0}
               aria-describedby={
-                state.assets.length === 0
+                state.roles.length === 0
                   ? "world-create-disabled-reason"
                   : undefined
               }
@@ -267,45 +276,52 @@ export function WorldListPage({
               </div>
               <div className={styles.formGrid}>
                 <label>
-                  主角名称
+                  主角角色
                   <select
-                    value={protagonistName}
+                    value={protagonistRoleId ?? ""}
                     disabled={mutationPending}
-                    onChange={(event) => setProtagonistName(event.target.value)}
+                    onChange={(event) => {
+                      const roleId = Number(event.target.value);
+                      setProtagonistRoleId(
+                        Number.isInteger(roleId) && roleId > 0 ? roleId : null,
+                      );
+                    }}
                   >
-                    <option value="">请选择角色素材</option>
-                    {state.assets.map((asset) => (
-                      <option key={asset.role_name} value={asset.role_name}>
-                        {asset.role_name}
+                    <option value="">请选择已有角色</option>
+                    {state.roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
                       </option>
                     ))}
                   </select>
                 </label>
-                <label className={styles.fullWidth}>
-                  基础人设
-                  <textarea
-                    value={protagonistPersona}
-                    disabled={mutationPending}
-                    maxLength={8000}
-                    onChange={(event) =>
-                      setProtagonistPersona(event.target.value)
-                    }
-                  />
-                </label>
               </div>
+              {selectedRole && (
+                <section
+                  className={styles.rolePreview}
+                  aria-label={`已选主角 ${selectedRole.name}`}
+                >
+                  <img
+                    className={styles.portrait}
+                    src={selectedRole.portrait_url}
+                    alt={`${selectedRole.name} 默认立绘`}
+                  />
+                  <div className={styles.roleSummary}>
+                    <h3>{selectedRole.name}</h3>
+                    <p>{selectedRole.persona}</p>
+                    <small>{selectedRole.attributes.length} 个基础属性</small>
+                  </div>
+                </section>
+              )}
               <p className={styles.disabledReason} id="create-submit-reason">
-                {!protagonistName || !protagonistPersona.trim()
-                  ? "请选择主角素材并填写基础人设后才能创建。"
-                  : "世界、初始分支和主角将一次性创建。"}
+                {protagonistRoleId === null
+                  ? "请选择全局角色库中的已有角色。"
+                  : "世界、初始分支和主角引用将一次性创建。"}
               </p>
               <div className={styles.formActions}>
                 <button
                   type="submit"
-                  disabled={
-                    mutationPending ||
-                    !protagonistName ||
-                    !protagonistPersona.trim()
-                  }
+                  disabled={mutationPending || protagonistRoleId === null}
                   aria-describedby="create-submit-reason"
                 >
                   {creating ? "正在创建…" : "确认创建"}
@@ -317,7 +333,7 @@ export function WorldListPage({
           {state.worlds.length === 0 ? (
             <section className={styles.stateCard}>
               <h2>还没有世界</h2>
-              <p>准备好主角素材后，从星期一的晨间开始第一天。</p>
+              <p>从角色库选择主角后，从星期一的晨间开始第一天。</p>
             </section>
           ) : (
             <section className={styles.cardGrid} aria-label="世界列表">

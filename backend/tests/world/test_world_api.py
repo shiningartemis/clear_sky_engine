@@ -50,8 +50,26 @@ def _role_payload(
     }
 
 
-def _world_payload(name: str = "天") -> dict[str, str]:
-    return {"protagonist_name": name, "protagonist_persona": "谨慎的主角"}
+def _world_payload(role_id: int) -> dict[str, int]:
+    return {"protagonist_role_id": role_id}
+
+
+async def _create_role(
+    client: AsyncClient,
+    name: str = "天",
+    *,
+    attributes: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    response = await client.post("/api/roles", json=_role_payload(name, attributes=attributes))
+    assert response.status_code == 201, response.text
+    payload: dict[str, object] = response.json()
+    return payload
+
+
+def _int_field(payload: dict[str, object], field: str) -> int:
+    value = payload.get(field)
+    assert isinstance(value, int)
+    return value
 
 
 @asynccontextmanager
@@ -79,15 +97,16 @@ async def configured_world_client(
     tmp_path: Path,
 ) -> AsyncGenerator[tuple[AsyncClient, int, int]]:
     async with phase3_client(tmp_path, character_assets={"天": "jpg", "莫莉莉": "png"}) as client:
-        npc = await client.post(
-            "/api/roles",
-            json=_role_payload("莫莉莉", attributes=[_attribute("level", "integer", 10)]),
+        protagonist = await _create_role(client)
+        npc = await _create_role(
+            client,
+            "莫莉莉",
+            attributes=[_attribute("level", "integer", 10)],
         )
-        assert npc.status_code == 201, npc.text
-        world = await client.post("/api/worlds", json=_world_payload())
+        world = await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
         assert world.status_code == 201, world.text
         world_id = world.json()["id"]
-        role_id = npc.json()["id"]
+        role_id = _int_field(npc, "id")
         added = await client.post(f"/api/worlds/{world_id}/roles", json={"role_id": role_id})
         assert added.status_code == 201, added.text
         yield client, world_id, role_id
@@ -95,7 +114,13 @@ async def configured_world_client(
 
 async def test_create_world_is_atomic_and_uses_system_defaults(tmp_path: Path) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
-        response = await client.post("/api/worlds", json=_world_payload())
+        protagonist = await _create_role(
+            client,
+            attributes=[_attribute("level", "integer", 7)],
+        )
+        response = await client.post(
+            "/api/worlds", json=_world_payload(_int_field(protagonist, "id"))
+        )
 
         assert response.status_code == 201, response.text
         world = response.json()
@@ -106,6 +131,51 @@ async def test_create_world_is_atomic_and_uses_system_defaults(tmp_path: Path) -
         assert world["player_role"]["name"] == "天"
         assert world["npc_count"] == 0
         assert (await client.get("/api/worlds")).json() == [world]
+        refreshed = (await client.get(f"/api/roles/{protagonist['id']}")).json()
+        for field in ("persona", "system_prompt", "world_book", "attributes", "version"):
+            assert refreshed[field] == protagonist[field]
+        assert refreshed["referenced_world_ids"] == [world["id"]]
+
+
+async def test_same_existing_role_can_be_protagonist_in_multiple_worlds(tmp_path: Path) -> None:
+    async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
+        protagonist = await _create_role(client)
+
+        first = await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
+        second = await client.post(
+            "/api/worlds", json=_world_payload(_int_field(protagonist, "id"))
+        )
+
+        assert first.status_code == 201, first.text
+        assert second.status_code == 201, second.text
+        assert first.json()["id"] != second.json()["id"]
+        refreshed = (await client.get(f"/api/roles/{protagonist['id']}")).json()
+        assert refreshed["referenced_world_ids"] == [first.json()["id"], second.json()["id"]]
+
+
+async def test_world_creation_rejects_unknown_or_assetless_protagonist(tmp_path: Path) -> None:
+    async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
+        missing = await client.post("/api/worlds", json=_world_payload(999))
+        protagonist = await _create_role(client)
+        config = AppConfig.for_local_app_data(tmp_path)
+        (config.paths.characters_dir / "天" / "天.jpg").unlink()
+        assetless = await client.post(
+            "/api/worlds", json=_world_payload(_int_field(protagonist, "id"))
+        )
+
+        assert missing.status_code == 404
+        assert missing.json()["detail"] == "主角角色不存在"
+        assert assetless.status_code == 409
+        assert assetless.json()["detail"] == "主角缺少有效的同名默认立绘"
+        assert (await client.get("/api/worlds")).json() == []
+        engine = create_sqlite_engine(config.paths.database_path)
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT COUNT(*) FROM world")).scalar_one() == 0
+            assert connection.execute(text("SELECT COUNT(*) FROM world_branch")).scalar_one() == 0
+            assert (
+                connection.execute(text("SELECT COUNT(*) FROM world_role_state")).scalar_one() == 0
+            )
+        engine.dispose()
 
 
 @pytest.mark.parametrize("unexpected", ["world_name", "day", "weekday"])
@@ -114,17 +184,32 @@ async def test_world_creation_rejects_client_owned_system_fields(
     unexpected: str,
 ) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
+        protagonist = await _create_role(client)
         response = await client.post(
-            "/api/worlds", json={**_world_payload(), unexpected: "客户端值"}
+            "/api/worlds",
+            json={**_world_payload(_int_field(protagonist, "id")), unexpected: "客户端值"},
         )
 
     assert response.status_code == 422
 
 
+async def test_world_creation_rejects_legacy_inline_role_fields(tmp_path: Path) -> None:
+    async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
+        response = await client.post(
+            "/api/worlds",
+            json={"protagonist_name": "天", "protagonist_persona": "谨慎的主角"},
+        )
+
+        assert response.status_code == 422
+        assert (await client.get("/api/worlds")).json() == []
+        assert (await client.get("/api/roles")).json() == []
+
+
 async def test_forced_player_unique_conflict_rolls_back_every_world_row(tmp_path: Path) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg", "冲突角色": "jpg"}) as client:
-        conflict_role = await client.post("/api/roles", json=_role_payload("冲突角色"))
-        conflict_role_id = conflict_role.json()["id"]
+        protagonist = await _create_role(client)
+        conflict_role = await _create_role(client, "冲突角色")
+        conflict_role_id = _int_field(conflict_role, "id")
         config = AppConfig.for_local_app_data(tmp_path)
         engine = create_sqlite_engine(config.paths.database_path)
         with engine.begin() as connection:
@@ -147,16 +232,19 @@ async def test_forced_player_unique_conflict_rolls_back_every_world_row(tmp_path
                 )
             )
 
-        response = await client.post("/api/worlds", json=_world_payload())
+        response = await client.post(
+            "/api/worlds", json=_world_payload(_int_field(protagonist, "id"))
+        )
 
         assert response.status_code == 409
+        assert response.json()["detail"] == "世界创建冲突"
         with engine.connect() as connection:
             assert connection.execute(text("SELECT COUNT(*) FROM world")).scalar_one() == 0
             assert connection.execute(text("SELECT COUNT(*) FROM world_branch")).scalar_one() == 0
             assert (
                 connection.execute(text("SELECT COUNT(*) FROM world_role_state")).scalar_one() == 0
             )
-            assert connection.execute(text("SELECT COUNT(*) FROM role")).scalar_one() == 1
+            assert connection.execute(text("SELECT COUNT(*) FROM role")).scalar_one() == 2
         engine.dispose()
 
 
@@ -188,12 +276,13 @@ async def test_world_rejects_the_twenty_first_npc(tmp_path: Path) -> None:
     npc_names = [f"NPC{index:02d}" for index in range(1, 22)]
     assets = {"天": "jpg", **dict.fromkeys(npc_names, "jpg")}
     async with phase3_client(tmp_path, character_assets=assets) as client:
+        protagonist = await _create_role(client)
         role_ids: list[int] = []
         for name in npc_names:
             role = await client.post("/api/roles", json=_role_payload(name))
             assert role.status_code == 201, role.text
             role_ids.append(role.json()["id"])
-        world = await client.post("/api/worlds", json=_world_payload())
+        world = await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
         world_id = world.json()["id"]
         for role_id in role_ids[:20]:
             added = await client.post(f"/api/worlds/{world_id}/roles", json={"role_id": role_id})
@@ -265,7 +354,10 @@ async def test_location_selection_rejects_invalid_id_and_does_not_advance_time(
     tmp_path: Path,
 ) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
-        world = (await client.post("/api/worlds", json=_world_payload())).json()
+        protagonist = await _create_role(client)
+        world = (
+            await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
+        ).json()
         invalid = await client.post(
             f"/api/worlds/{world['id']}/location", json={"location_id": "unknown"}
         )
@@ -298,7 +390,10 @@ async def test_location_selection_rejects_invalid_id_and_does_not_advance_time(
 
 async def test_world_map_has_player_marker_and_no_visible_portrait_strip(tmp_path: Path) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
-        world = (await client.post("/api/worlds", json=_world_payload())).json()
+        protagonist = await _create_role(client)
+        world = (
+            await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
+        ).json()
 
         response = await client.get(
             f"/api/worlds/{world['id']}/game-view", params={"scene_id": "the_world_map"}
@@ -327,11 +422,14 @@ async def test_world_map_has_player_marker_and_no_visible_portrait_strip(tmp_pat
 async def test_location_view_contains_only_backend_resolved_visible_roles(tmp_path: Path) -> None:
     assets = {"天": "jpg", "莫莉莉": "png", "安可儿": "png", "离线者": "jpg"}
     async with phase3_client(tmp_path, character_assets=assets) as client:
+        protagonist = await _create_role(client)
         npc_ids: list[int] = []
         for name in ("莫莉莉", "安可儿", "离线者"):
             role = await client.post("/api/roles", json=_role_payload(name))
             npc_ids.append(role.json()["id"])
-        world = (await client.post("/api/worlds", json=_world_payload())).json()
+        world = (
+            await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
+        ).json()
         world_id = world["id"]
         for role_id in reversed(npc_ids):
             assert (
@@ -377,7 +475,10 @@ async def test_location_view_contains_only_backend_resolved_visible_roles(tmp_pa
 
 async def test_world_deletion_keeps_global_player_role(tmp_path: Path) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
-        world = (await client.post("/api/worlds", json=_world_payload())).json()
+        protagonist = await _create_role(client)
+        world = (
+            await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
+        ).json()
         player_id = world["player_role"]["id"]
 
         deleted = await client.delete(f"/api/worlds/{world['id']}")
@@ -390,9 +491,10 @@ async def test_world_deletion_keeps_global_player_role(tmp_path: Path) -> None:
 async def test_effective_attributes_follow_replaced_base_definition_set(tmp_path: Path) -> None:
     initial = [_attribute("level", "integer", 10), _attribute("money", "integer", 1000)]
     async with phase3_client(tmp_path, character_assets={"天": "jpg", "莫莉莉": "png"}) as client:
+        protagonist = await _create_role(client)
         npc = await client.post("/api/roles", json=_role_payload("莫莉莉", attributes=initial))
         role_id = npc.json()["id"]
-        world = await client.post("/api/worlds", json=_world_payload())
+        world = await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
         world_id = world.json()["id"]
         await client.post(f"/api/worlds/{world_id}/roles", json={"role_id": role_id})
         config = AppConfig.for_local_app_data(tmp_path)

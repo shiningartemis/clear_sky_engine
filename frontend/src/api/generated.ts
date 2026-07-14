@@ -876,10 +876,8 @@ export interface components {
         };
         /** WorldCreate */
         WorldCreate: {
-            /** Protagonist Name */
-            protagonist_name: string;
-            /** Protagonist Persona */
-            protagonist_persona: string;
+            /** Protagonist Role Id */
+            protagonist_role_id: number;
         };
         /** WorldResponse */
         WorldResponse: {

@@ -1,7 +1,7 @@
 """世界、世界角色、位置规则和游戏视图 HTTP API。"""
 
 from datetime import datetime
-from typing import Annotated, Literal, TypeGuard
+from typing import Literal, TypeGuard
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
@@ -16,7 +16,6 @@ from app.world.service import (
     LocationCandidateDraft,
     LocationRuleDraft,
     LocationRuleRecord,
-    ProtagonistDraft,
     WorldConflictError,
     WorldNotFoundError,
     WorldRecord,
@@ -37,8 +36,7 @@ LocationId = Literal[
 class WorldCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    protagonist_name: Annotated[str, Field(min_length=1, max_length=120)]
-    protagonist_persona: Annotated[str, Field(min_length=1, max_length=8000)]
+    protagonist_role_id: int = Field(gt=0)
 
 
 class WorldRoleAdd(BaseModel):
@@ -268,19 +266,14 @@ def create_world_router(service: WorldService) -> APIRouter:
 
     def create_world(payload: WorldCreate) -> WorldResponse:
         try:
-            return _world_response(
-                service.create_world(
-                    ProtagonistDraft(
-                        name=payload.protagonist_name,
-                        persona=payload.protagonist_persona,
-                    )
-                )
-            )
+            return _world_response(service.create_world(payload.protagonist_role_id))
         except AssetNotFoundError, InvalidResourceNameError:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="主角缺少有效的同名默认立绘",
             ) from None
+        except WorldNotFoundError as error:
+            raise _not_found(error) from None
         except WorldConflictError as error:
             raise _conflict(error) from None
 

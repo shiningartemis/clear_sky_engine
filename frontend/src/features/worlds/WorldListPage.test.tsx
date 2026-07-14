@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-
+import { ApiError } from "../../api/health";
 import type { RolesApi } from "../../api/roles";
 import type { WorldResponse, WorldsApi } from "../../api/worlds";
 import { WorldListPage } from "./WorldListPage";
@@ -35,6 +35,16 @@ function worldResponse(overrides: Partial<WorldResponse> = {}): WorldResponse {
   };
 }
 
+function roleResponse(
+  overrides: Partial<WorldResponse["player_role"]> = {},
+): WorldResponse["player_role"] {
+  return {
+    ...worldResponse().player_role,
+    referenced_world_ids: [],
+    ...overrides,
+  };
+}
+
 function createWorldsApi(overrides: Partial<WorldsApi> = {}): WorldsApi {
   return {
     listWorlds: vi.fn().mockResolvedValue([]),
@@ -57,7 +67,14 @@ function createRolesApi(overrides: Partial<RolesApi> = {}): RolesApi {
       { role_name: "天", portrait_url: "/portraits/tian" },
       { role_name: "安可儿", portrait_url: "/portraits/anker" },
     ]),
-    listRoles: vi.fn().mockResolvedValue([]),
+    listRoles: vi.fn().mockResolvedValue([
+      roleResponse(),
+      roleResponse({
+        id: 10,
+        name: "安可儿",
+        portrait_url: "/portraits/anker",
+      }),
+    ]),
     createRole: vi.fn(),
     updateRole: vi.fn(),
     deleteRole: vi.fn(),
@@ -65,10 +82,10 @@ function createRolesApi(overrides: Partial<RolesApi> = {}): RolesApi {
   };
 }
 
-function renderWorldList(api = createWorldsApi(), assetApi = createRolesApi()) {
+function renderWorldList(api = createWorldsApi(), roleApi = createRolesApi()) {
   return render(
     <MemoryRouter>
-      <WorldListPage api={api} assetApi={assetApi} />
+      <WorldListPage api={api} roleApi={roleApi} />
     </MemoryRouter>,
   );
 }
@@ -92,15 +109,20 @@ function deferred<T>() {
 }
 
 describe("WorldListPage", () => {
-  it("creates a world without asking for a world name or weekday", async () => {
+  it("creates a world by selecting an existing role without editing it", async () => {
     const user = userEvent.setup();
     renderWorldList();
     await user.click(await screen.findByRole("button", { name: "创建世界" }));
 
     expect(screen.queryByLabelText("世界名称")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("起始星期")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("主角名称")).toBeInTheDocument();
-    expect(screen.getByLabelText("基础人设")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("主角角色"), "9");
+    expect(screen.queryByLabelText("基础人设")).not.toBeInTheDocument();
+    expect(screen.getByText("谨慎的冒险者")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "天 默认立绘" })).toHaveAttribute(
+      "src",
+      "/portraits/tian",
+    );
     expect(
       screen.getByText("固定从星期一 · Day 1 · 晨间开始"),
     ).toBeInTheDocument();
@@ -109,18 +131,20 @@ describe("WorldListPage", () => {
   it("retains protagonist input when atomic creation fails", async () => {
     const user = userEvent.setup();
     const api = createWorldsApi({
-      createWorld: vi.fn().mockRejectedValue(new Error("conflict")),
+      createWorld: vi
+        .fn()
+        .mockRejectedValue(new ApiError("主角缺少有效的同名默认立绘", 409)),
     });
     renderWorldList(api);
 
     await user.click(await screen.findByRole("button", { name: "创建世界" }));
-    await user.selectOptions(screen.getByLabelText("主角名称"), "天");
-    await user.type(screen.getByLabelText("基础人设"), "谨慎的冒险者");
+    await user.selectOptions(screen.getByLabelText("主角角色"), "9");
     await user.click(screen.getByRole("button", { name: "确认创建" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("创建世界失败");
-    expect(screen.getByLabelText("主角名称")).toHaveValue("天");
-    expect(screen.getByLabelText("基础人设")).toHaveValue("谨慎的冒险者");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "创建世界失败；已保留主角选择。主角缺少有效的同名默认立绘",
+    );
+    expect(screen.getByLabelText("主角角色")).toHaveValue("9");
   });
 
   it("navigates to world roles after successful creation", async () => {
@@ -128,14 +152,14 @@ describe("WorldListPage", () => {
     const api = createWorldsApi({
       createWorld: vi.fn().mockResolvedValue(worldResponse()),
     });
-    const assetApi = createRolesApi();
+    const roleApi = createRolesApi();
 
     render(
       <MemoryRouter>
         <Routes>
           <Route
             path="/"
-            element={<WorldListPage api={api} assetApi={assetApi} />}
+            element={<WorldListPage api={api} roleApi={roleApi} />}
           />
           <Route path="/worlds/:worldId/roles" element={<p>世界角色页</p>} />
         </Routes>
@@ -143,15 +167,11 @@ describe("WorldListPage", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "创建世界" }));
-    await user.selectOptions(screen.getByLabelText("主角名称"), "天");
-    await user.type(screen.getByLabelText("基础人设"), "谨慎的冒险者");
+    await user.selectOptions(screen.getByLabelText("主角角色"), "9");
     await user.click(screen.getByRole("button", { name: "确认创建" }));
 
     expect(await screen.findByText("世界角色页")).toBeInTheDocument();
-    expect(api.createWorld).toHaveBeenCalledWith({
-      protagonist_name: "天",
-      protagonist_persona: "谨慎的冒险者",
-    });
+    expect(api.createWorld).toHaveBeenCalledWith({ protagonist_role_id: 9 });
   });
 
   it("does not navigate when a delayed create succeeds after leaving the page", async () => {
@@ -169,7 +189,7 @@ describe("WorldListPage", () => {
             element={
               <>
                 <Link to="/away">离开世界列表</Link>
-                <WorldListPage api={api} assetApi={createRolesApi()} />
+                <WorldListPage api={api} roleApi={createRolesApi()} />
               </>
             }
           />
@@ -179,8 +199,7 @@ describe("WorldListPage", () => {
     );
 
     await user.click(await screen.findByRole("button", { name: "创建世界" }));
-    await user.selectOptions(screen.getByLabelText("主角名称"), "天");
-    await user.type(screen.getByLabelText("基础人设"), "谨慎的冒险者");
+    await user.selectOptions(screen.getByLabelText("主角角色"), "9");
     await user.click(screen.getByRole("button", { name: "确认创建" }));
     await user.click(screen.getByRole("link", { name: "离开世界列表" }));
 
@@ -202,10 +221,10 @@ describe("WorldListPage", () => {
     const secondApi = createWorldsApi({
       listWorlds: vi.fn().mockResolvedValue([worldResponse({ day: 9 })]),
     });
-    const assetApi = createRolesApi();
+    const roleApi = createRolesApi();
     const view = render(
       <MemoryRouter>
-        <WorldListPage api={firstApi} assetApi={assetApi} />
+        <WorldListPage api={firstApi} roleApi={roleApi} />
       </MemoryRouter>,
     );
 
@@ -215,7 +234,7 @@ describe("WorldListPage", () => {
     await user.click(screen.getByRole("button", { name: "确认删除 世界 4" }));
     view.rerender(
       <MemoryRouter>
-        <WorldListPage api={secondApi} assetApi={assetApi} />
+        <WorldListPage api={secondApi} roleApi={roleApi} />
       </MemoryRouter>,
     );
     expect(
@@ -240,10 +259,10 @@ describe("WorldListPage", () => {
     const secondApi = createWorldsApi({
       listWorlds: vi.fn().mockResolvedValue([worldResponse({ day: 9 })]),
     });
-    const assetApi = createRolesApi();
+    const roleApi = createRolesApi();
     const view = render(
       <MemoryRouter>
-        <WorldListPage api={firstApi} assetApi={assetApi} />
+        <WorldListPage api={firstApi} roleApi={roleApi} />
       </MemoryRouter>,
     );
 
@@ -253,7 +272,7 @@ describe("WorldListPage", () => {
     await user.click(screen.getByRole("button", { name: "确认删除 世界 4" }));
     view.rerender(
       <MemoryRouter>
-        <WorldListPage api={secondApi} assetApi={assetApi} />
+        <WorldListPage api={secondApi} roleApi={roleApi} />
       </MemoryRouter>,
     );
     expect(
@@ -304,10 +323,10 @@ describe("WorldListPage", () => {
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce([]);
     const api = createWorldsApi({ listWorlds });
-    const assetApi = createRolesApi({
-      listAssets: vi.fn().mockResolvedValue([]),
+    const roleApi = createRolesApi({
+      listRoles: vi.fn().mockResolvedValue([]),
     });
-    renderWorldList(api, assetApi);
+    renderWorldList(api, roleApi);
 
     expect(screen.getByText("正在加载世界…")).toBeInTheDocument();
     expect(await screen.findByText("无法加载世界列表")).toBeInTheDocument();
@@ -317,7 +336,7 @@ describe("WorldListPage", () => {
     const createButton = screen.getByRole("button", { name: "创建世界" });
     expect(createButton).toBeDisabled();
     expect(createButton).toHaveAccessibleDescription(
-      "请先在角色资源目录添加主角的同名默认立绘。",
+      "请先在全局角色库创建角色并准备同名默认立绘。",
     );
   });
 });

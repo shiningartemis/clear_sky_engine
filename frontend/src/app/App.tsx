@@ -106,7 +106,7 @@ export function App({
       <Routes>
         <Route
           path="/"
-          element={<WorldListPage api={worldsApi} assetApi={rolesApi} />}
+          element={<WorldListPage api={worldsApi} roleApi={rolesApi} />}
         />
         <Route path="/roles" element={<RoleLibraryPage api={rolesApi} />} />
         <Route

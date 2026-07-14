@@ -1,5 +1,9 @@
 ﻿[CmdletBinding()]
-param([switch]$StartBackend)
+param(
+    [switch]$StartBackend,
+    [ValidateRange(1, 65535)]
+    [int] $Port = 8000
+)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -32,7 +36,7 @@ if ($StartBackend) {
         $migrationCode = "from pathlib import Path; from app.config import AppConfig; from app.db.migrations import upgrade_database; config = AppConfig.for_local_app_data(); config.paths.create_directories(); upgrade_database(config.paths.database_path, Path('alembic.ini').resolve())"
         & $uv run python -c $migrationCode
         if ($LASTEXITCODE -ne 0) { throw "E2E database migration failed." }
-        & $uv run python -m uvicorn app.main:create_app --factory --app-dir backend/src --host 127.0.0.1 --port 8000
+        & $uv run python -m uvicorn app.main:create_app --factory --app-dir backend/src --host 127.0.0.1 --port $Port
         if ($LASTEXITCODE -ne 0) { throw "E2E backend failed." }
     }
     finally {
