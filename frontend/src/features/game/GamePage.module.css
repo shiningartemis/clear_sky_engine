@@ -1,0 +1,138 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #08111f;
+  color: #edf6ff;
+}
+
+.gameCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.gameCanvas canvas {
+  display: block;
+}
+
+.statusPanel,
+.resizeWarning {
+  position: absolute;
+  z-index: 3;
+  top: 32px;
+  left: 32px;
+  width: min(360px, calc(100vw - 64px));
+  padding: 20px;
+  border: 1px solid rgb(159 204 235 / 24%);
+  border-radius: 16px;
+  background: rgb(7 19 34 / 86%);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(16px);
+}
+
+.statusPanel h1,
+.statusPanel p,
+.resizeWarning {
+  margin-block: 0 12px;
+}
+
+.statusPanel button,
+.mapButton {
+  min-height: 40px;
+  padding: 9px 18px;
+  border: 1px solid rgb(143 211 255 / 38%);
+  border-radius: 999px;
+  background: rgb(10 31 51 / 90%);
+  color: #d9f2ff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.statusPanel button:focus-visible,
+.mapButton:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.mapButton {
+  position: absolute;
+  z-index: 3;
+  top: 28px;
+  left: 28px;
+}
+
+.portraitStrip {
+  position: absolute;
+  z-index: 2;
+  right: 40px;
+  bottom: 32px;
+  left: 40px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.portraitCard {
+  flex: 0 0 auto;
+  margin: 0;
+  text-align: center;
+}
+
+.portraitFrame {
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid #7892a8;
+  border-radius: 10px;
+  background: #07111d;
+  box-shadow: 0 12px 36px rgb(0 0 0 / 38%);
+}
+
+.portraitImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.portraitCard figcaption {
+  margin-top: 6px;
+  overflow: hidden;
+  color: #d8e8f3;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 4px #000;
+  white-space: nowrap;
+}
+
+.portraitError {
+  margin: 0;
+  padding: 12px;
+  color: #ffbec4;
+  font-size: 13px;
+}
+
+.resizeWarning {
+  top: auto;
+  right: 32px;
+  bottom: 24px;
+  left: 32px;
+  width: auto;
+  margin: 0;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .statusPanel {
+    top: 16px;
+    left: 16px;
+    width: calc(100vw - 32px);
+  }
+
+  .mapButton {
+    top: 16px;
+    left: 16px;
+  }
+}

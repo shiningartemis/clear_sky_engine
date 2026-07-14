@@ -9,6 +9,15 @@ import type { RolesApi } from "../api/roles";
 import type { WorldsApi } from "../api/worlds";
 import { App } from "./App";
 
+vi.mock("../game/PhaserGame", () => ({
+  createDefaultGameBridge: () => ({
+    mount: vi.fn(),
+    update: vi.fn(),
+    subscribe: vi.fn(() => vi.fn()),
+    destroy: vi.fn(),
+  }),
+}));
+
 const healthyResponse: HealthResponse = {
   status: "ok",
   app_version: "0.1.0",
@@ -123,6 +132,40 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(worldsApi.listWorldRoles).toHaveBeenCalledWith(
       4,
+      expect.any(AbortSignal),
+    );
+  });
+
+  it("navigates from world roles to the real game route", async () => {
+    const user = userEvent.setup();
+    const worldsApi = createWorldsApi({
+      getGameView: vi.fn().mockResolvedValue({
+        world_id: 4,
+        scene_id: "the_world_map",
+        background_url: "/maps/world.jpg",
+        fallback_background_url: "/maps/fallback.jpg",
+        player_marker_url: "/portraits/player.png",
+        player_location_id: "the_home",
+        locations: [],
+        visible_roles: [],
+      }),
+    });
+
+    renderApp(
+      <App
+        loadHealth={vi.fn().mockResolvedValue(healthyResponse)}
+        worldsApi={worldsApi}
+        rolesApi={createRolesApi()}
+      />,
+      "/worlds/4/roles",
+    );
+
+    await user.click(await screen.findByRole("link", { name: "进入世界" }));
+
+    expect(await screen.findByLabelText("游戏地图")).toBeInTheDocument();
+    expect(worldsApi.getGameView).toHaveBeenCalledWith(
+      4,
+      "the_world_map",
       expect.any(AbortSignal),
     );
   });

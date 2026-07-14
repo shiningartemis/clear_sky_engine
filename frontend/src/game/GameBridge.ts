@@ -1,30 +1,47 @@
-interface GameHandle {
+import type { GameBridgePort, GameEvent, GameViewState } from "./types";
+
+export interface GameHandle {
   destroy(removeCanvas: boolean): void;
+  update(state: GameViewState): void;
 }
 
-export interface GameBridgePort {
-  mount(container: HTMLElement): void;
-  destroy(): void;
-}
-
-export type GameFactory = (container: HTMLElement) => GameHandle;
+export type GameFactory = (
+  container: HTMLElement,
+  emit: (event: GameEvent) => void,
+) => GameHandle;
 
 export class GameBridge implements GameBridgePort {
   private game: GameHandle | undefined;
+  private latestState: GameViewState | undefined;
+  private readonly listeners = new Set<(event: GameEvent) => void>();
 
   constructor(private readonly gameFactory: GameFactory) {}
 
   mount(container: HTMLElement): void {
-    if (this.game) {
-      return;
-    }
+    if (this.game) return;
 
-    // React 只管理容器生命周期；Phaser 的场景和 Canvas 必须由桥接层统一销毁。
-    this.game = this.gameFactory(container);
+    // React 只管理容器生命周期；Phaser 场景与 Canvas 必须由桥接层统一销毁。
+    this.game = this.gameFactory(container, (event) => {
+      for (const listener of this.listeners) listener(event);
+    });
+    if (this.latestState) this.game.update(this.latestState);
+  }
+
+  update(state: GameViewState): void {
+    this.latestState = state;
+    this.game?.update(state);
+  }
+
+  subscribe(listener: (event: GameEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   destroy(): void {
     this.game?.destroy(true);
     this.game = undefined;
+    this.listeners.clear();
   }
 }

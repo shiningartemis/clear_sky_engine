@@ -6,6 +6,7 @@ import { fetchHealth, type HealthResponse } from "../api/health";
 import type { RolesApi } from "../api/roles";
 import type { WorldsApi } from "../api/worlds";
 import { AiSettingsPage } from "../features/ai-settings/AiSettingsPage";
+import { GamePage } from "../features/game/GamePage";
 import { RoleLibraryPage } from "../features/roles/RoleLibraryPage";
 import { WorldListPage } from "../features/worlds/WorldListPage";
 import { WorldRolesPage } from "../features/worlds/WorldRolesPage";
@@ -111,6 +112,10 @@ export function App({
         <Route
           path="/worlds/:worldId/roles"
           element={<WorldRolesPage api={worldsApi} roleApi={rolesApi} />}
+        />
+        <Route
+          path="/worlds/:worldId/game"
+          element={<GamePage api={worldsApi} />}
         />
         <Route
           path="/settings/ai"
