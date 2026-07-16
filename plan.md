@@ -322,6 +322,16 @@ export function parseJsonObjectEditor(source: string): JsonObjectParseResult;
 - 前端分项：`npm --prefix frontend run check` 通过（49 files）；`npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run build` 通过（Vite 46 modules，保留既有 >1500 kB chunk 警告）。
 - 全量：`./scripts/check.ps1` 沙箱外通过；后端 216 passed、6 deselected，前端 15 个测试文件、138 tests passed，Ruff format/check、Pyright、Biome、TypeScript 与 Vite build 均通过。
 
+**独立审查修复验证（2026-07-16）**
+
+- 修复固定任务集合边界：响应必须恰好包含 `location_simulation` 与 `attribute_memory_analysis` 各一次；缺失或重复均作为无效响应进入既有错误边界。
+- 修复保留字段定位：扫描合法 JSON 的根对象成员键，不再把字符串值中的同名文本误认为冲突键；覆盖 `{"note":"max_tokens","max_tokens":100}`。
+- 补充成功保存表单到 `TaskSettingUpdate` 完整 payload 映射断言。
+- RED：聚焦命令最终为 3 failed / 17 passed，分别证明缺失集合、重复集合和同名字符串值定位问题。
+- GREEN：`npm --prefix frontend run test -- --run src/api/aiSettings.test.ts src/features/ai-settings/AiSettingsPage.test.tsx` 通过，2 个测试文件、20 tests passed。
+- 分项：Biome 49 files、`tsc --noEmit`、Vite build 均通过；构建保留既有 >1500 kB chunk 警告。
+- 全量：`./scripts/check.ps1` 沙箱外通过；后端 216 passed、6 deselected，前端 15 个测试文件、140 tests passed，Ruff format/check、Pyright、Biome、TypeScript 与 Vite build 均通过。
+
 ---
 
 ## 任务 4：NPC 二次缓存、主角预留位与显式 offline

@@ -86,6 +86,22 @@ function isTaskSetting(value: unknown): value is TaskSettingResponse {
   );
 }
 
+function isFixedTaskSettingCollection(
+  value: unknown,
+): value is TaskSettingResponse[] {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    !value.every(isTaskSetting)
+  ) {
+    return false;
+  }
+  return (
+    value.some((item) => item.task_key === "location_simulation") &&
+    value.some((item) => item.task_key === "attribute_memory_analysis")
+  );
+}
+
 function sourcePosition(source: string, offset: number) {
   const safeOffset = Math.max(0, Math.min(offset, source.length));
   const lines = source.slice(0, safeOffset).split("\n");
@@ -227,8 +243,7 @@ export const aiSettingsApi: AiSettingsApi = {
     return requestJson(
       "/api/ai-task-settings",
       { headers: { Accept: "application/json" }, signal },
-      (value): value is TaskSettingResponse[] =>
-        Array.isArray(value) && value.every(isTaskSetting),
+      isFixedTaskSettingCollection,
     );
   },
   async createProvider(payload) {

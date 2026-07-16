@@ -186,6 +186,16 @@ describe("AiSettingsPage", () => {
     expect(within(card).getByRole("alert")).toHaveTextContent(
       /第 2 行，第 3 列.*字段“max_tokens”与程序保留字段冲突/,
     );
+
+    fireEvent.change(editor, {
+      target: {
+        value: '{\n  "note": "max_tokens",\n  "max_tokens": 100\n}',
+      },
+    });
+    await user.click(save);
+    expect(within(card).getByRole("alert")).toHaveTextContent(
+      /第 3 行，第 3 列.*字段“max_tokens”与程序保留字段冲突/,
+    );
   });
 
   it("validates memory target against its hard maximum", async () => {
@@ -229,6 +239,18 @@ describe("AiSettingsPage", () => {
     await user.click(
       within(locationCard).getByRole("button", { name: "保存任务设置" }),
     );
+    expect(updateTaskSetting).toHaveBeenCalledWith("location_simulation", {
+      model_id: 2,
+      temperature: 0.7,
+      max_output_tokens: 2048,
+      reasoning_effort: "high",
+      timeout_seconds: 90,
+      extra_prompt: "保持客观",
+      structured_output_mode: "auto",
+      provider_options: { top_p: 0.9 },
+      memory_target_chars: null,
+      memory_max_chars: null,
+    });
     expect(within(locationCard).getByLabelText("任务模型")).toBeDisabled();
     expect(
       within(attributeCard).getByRole("button", { name: "保存任务设置" }),

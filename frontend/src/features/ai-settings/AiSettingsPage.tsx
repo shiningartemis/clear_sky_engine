@@ -86,6 +86,48 @@ function editorPosition(source: string, offset: number) {
   return { line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1 };
 }
 
+function findRootObjectKeyOffset(source: string, targetKey: string) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let expectingRootKey = false;
+  let rootKeyStart = -1;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+        if (rootKeyStart >= 0) {
+          // 已通过 JSON.parse 的源文本可安全解码单个键；用解码值处理 Unicode 转义键。
+          const decodedKey: unknown = JSON.parse(
+            source.slice(rootKeyStart, index + 1),
+          );
+          if (decodedKey === targetKey) return rootKeyStart;
+          rootKeyStart = -1;
+          expectingRootKey = false;
+        }
+      }
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      if (depth === 1 && expectingRootKey) rootKeyStart = index;
+    } else if (character === "{") {
+      depth += 1;
+      if (depth === 1) expectingRootKey = true;
+    } else if (character === "}") {
+      depth -= 1;
+    } else if (character === "," && depth === 1) {
+      expectingRootKey = true;
+    }
+  }
+  return 0;
+}
+
 function formFromSetting(setting: TaskSettingResponse): TaskFormState {
   return {
     modelId: setting.model_id?.toString() ?? "",
@@ -151,13 +193,11 @@ function TaskSettingCard({ setting, models, api }: TaskSettingCardProps) {
       protectedProviderOptionKeys.has(normalizeProviderOptionKey(key)),
     );
     if (conflict) {
-      const keyOffset = form.providerOptionsSource.indexOf(
-        JSON.stringify(conflict),
-      );
-      const position = editorPosition(
+      const keyOffset = findRootObjectKeyOffset(
         form.providerOptionsSource,
-        keyOffset < 0 ? 0 : keyOffset,
+        conflict,
       );
+      const position = editorPosition(form.providerOptionsSource, keyOffset);
       setMessage({
         kind: "error",
         text: `第 ${position.line} 行，第 ${position.column} 列：字段“${conflict}”与程序保留字段冲突。`,

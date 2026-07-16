@@ -103,6 +103,28 @@ describe("aiSettingsApi", () => {
     });
   });
 
+  it.each([
+    ["缺少属性与记忆任务", [taskSetting]],
+    [
+      "重复地点推演任务",
+      [taskSetting, { ...taskSetting, version: taskSetting.version + 1 }],
+    ],
+  ])("rejects a fixed task collection that %s", async (_caseName, payload) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    await expect(aiSettingsApi.listTaskSettings()).rejects.toThrow(
+      "AI 配置响应格式无效。",
+    );
+  });
+
   it("updates one fixed task setting without converting provider JSON", async () => {
     const payload = {
       model_id: 8,
