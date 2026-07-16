@@ -31,7 +31,7 @@
 
 ## 2. 当前状态
 
-- 当前执行点：任务 3——全局 AI 任务设置前端与 JSON 编辑器；任务 2 已完成并停止在任务边界。
+- 当前执行点：任务 4——NPC 二次缓存、主角预留位与显式 offline 已完成并停止在任务边界；任务 5 尚未开始。
 - 任务 1 开始基线提交：`7cf00d2 docs: define merged phase 4 and 5 implementation plan`。
 - [x] 阶段 1：工程、本地运行、安全启动器、检查脚本和 onedir 构建基线完成；干净 Windows 11 x64 仍作为最终发布门禁保留。
 - [x] 阶段 2：Provider/Model 管理、OpenAI-compatible、DeepSeek、普通/流式/JSON/Tool Calls 和真实 API 验证完成。
@@ -378,12 +378,20 @@ def allocate_role_presences(
 
 **Steps**
 
-- [ ] 用表驱动测试覆盖：刚好 5 NPC、单地图 6+、多地图溢出补位、所有地图满、缓存剩余、无规则、空缓存、无 NPC、输入顺序变化、同种子复现、不同时间种子、主角移动不改变 NPC。
-- [ ] 先运行 `uv run pytest backend/tests/game/test_locations.py backend/tests/world/test_world_api.py -q`，确认旧 `enforce_location_capacity` 行为失败。
-- [ ] 实现纯函数并让 `WorldService.get_game_view` 和轮次快照共用它，禁止前端自行推断位置。
-- [ ] 运行聚焦测试与 `./scripts/check.ps1`，更新本文件并提交 `feat: redistribute overflow npcs deterministically`。
+- [x] 用表驱动测试覆盖：刚好 5 NPC、单地图 6+、多地图溢出补位、所有地图满、缓存剩余、无规则、空缓存、无 NPC、输入顺序变化、同种子复现、不同时间种子、主角移动不改变 NPC。
+- [x] 先运行 `uv run pytest backend/tests/game/test_locations.py backend/tests/world/test_world_api.py -q`，确认旧 `enforce_location_capacity` 行为失败。
+- [x] 实现纯函数并让 `WorldService.get_game_view` 和轮次快照共用它，禁止前端自行推断位置。
+- [x] 运行聚焦测试与 `./scripts/check.ps1`，更新本文件并提交 `feat: redistribute overflow npcs deterministically`。
 
 **Expected:** 所有启用角色都有字符串位置；每图 NPC≤5；离线角色后续不会创建地图链或触发空指针。
+
+**验证记录（2026-07-16）**
+
+- RED：`uv run pytest backend/tests/game/test_locations.py backend/tests/world/test_world_api.py -q` 为 14 failed / 22 passed；失败点为缺少 `OFFLINE` 与 `allocate_role_presences`，以及旧容量逻辑未把两个溢出 NPC 补入 `the_dungeon`。
+- GREEN：同一聚焦命令最终为 36 passed；显式覆盖 role_id 排序、`sha256("7:1:morning:overflow")` 种子、`LOCATION_IDS` 补位顺序、每图最多 5 NPC、永久主角预留位、offline/禁用角色、输入顺序、返回顺序、跨时间种子与主角移动稳定性。
+- 分项：Ruff format/check 通过；Pyright 为 0 errors / 0 warnings / 0 informations。
+- 全量：`./scripts/check.ps1` 沙箱内因 uv 用户缓存无法初始化失败，沙箱外原命令重跑通过；后端 225 passed、6 deselected，前端 15 个测试文件、140 tests passed，OpenAPI 无漂移，Ruff/Pyright/Biome/TypeScript/Vite build 均通过；保留既有 >1500 kB chunk 警告。
+- 边界：当前尚无轮次快照模块，未提前创建任务 5+ 实现；新纯函数已从 `app.game` 正确导出，供后续快照构建复用。
 
 ---
 
@@ -896,6 +904,7 @@ npm --prefix frontend run test:e2e:live
 | 2026-07-16 | 合并设计 | 核心文档契约扫描、`git diff --check`、用户逐项确认 | 阶段 4+5 合并设计已写入 `需求与产品设计.md`、`技术选型文档.md`，提交 `ba0a44c` |
 | 2026-07-16 | 任务 1 | RED：迁移聚焦测试 `7 failed, 1 passed`，Model 后端 `2 failed`，前端边界 `1 failed`；GREEN：`uv run pytest backend/tests/test_phase45_migrations.py -q`、`scripts/check.ps1`、独立代码审查 | 迁移聚焦 `7 passed`；完整检查后端 `177 passed, 6 deselected`、前端 `127 passed`，Ruff/Pyright/Biome/TypeScript/Vite build 全部通过；SQLite `3.53.1`；审查无 Critical/Important/Minor；未改 Provider 传输，未重复付费真实 AI 测试 |
 | 2026-07-16 | 任务 2 | RED：聚焦 pytest 因缺少 `app.workflow.settings` 收集失败；删除受引用模型暴露 `IntegrityError`；PUT 缺必填可空字段错误返回 200；独立审查证明密钥拼写绕过、快照可变及任务设置提交异常链可携带敏感参数；GREEN：聚焦 pytest、`scripts/generate-api.ps1`、`scripts/check.ps1`、独立与正式代码审查 | 聚焦 `46 passed`；完整检查后端 `216 passed, 6 deselected`、前端 `127 passed`，Ruff/Pyright/Biome/TypeScript/Vite build 全部通过；审查 3 个有效 Important 已修复，PUT version 意见按既定服务端版本契约不采纳；仅已有 Vite 大包警告；未改 Provider 传输，未重复付费真实 AI 测试 |
+| 2026-07-16 | 任务 4 | RED：聚焦 `14 failed, 22 passed`；GREEN：聚焦、Ruff、Pyright、`scripts/check.ps1`、旧哨兵/入口搜索与 diff 审计 | 聚焦 `36 passed`；完整检查后端 `225 passed, 6 deselected`、前端 `140 passed`，所有静态检查和构建通过；仅既有 Vite 大包警告；轮次快照尚不存在，未提前实现任务 5+ |
 
 后续每个任务在完成提交前追加一行，至少记录日期、精确命令、pass/fail、测试数量或关键证据、未验证项。
 

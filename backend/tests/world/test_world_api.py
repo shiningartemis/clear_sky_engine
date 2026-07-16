@@ -516,6 +516,66 @@ async def test_location_view_contains_only_backend_resolved_visible_roles(tmp_pa
         ]
 
 
+async def test_game_view_redistributes_overflow_without_player_movement(tmp_path: Path) -> None:
+    npc_names = [f"缓存角色{index}" for index in range(1, 8)]
+    assets = {"天": "jpg", **dict.fromkeys(npc_names, "jpg")}
+    async with phase3_client(tmp_path, character_assets=assets) as client:
+        protagonist = await _create_role(client)
+        world = (
+            await client.post("/api/worlds", json=_world_payload(_int_field(protagonist, "id")))
+        ).json()
+        world_id = world["id"]
+        npc_ids: list[int] = []
+        for name in npc_names:
+            role = await _create_role(client, name)
+            role_id = _int_field(role, "id")
+            npc_ids.append(role_id)
+            assert (
+                await client.post(f"/api/worlds/{world_id}/roles", json={"role_id": role_id})
+            ).status_code == 201
+            assert (
+                await client.put(
+                    f"/api/worlds/{world_id}/roles/{role_id}/location-rules",
+                    json=[
+                        {
+                            "weekday_mask": 1,
+                            "time_slot": "morning",
+                            "mode": "fixed",
+                            "priority": 1,
+                            "enabled": True,
+                            "candidates": [{"location_id": "the_home", "weight": 1}],
+                        }
+                    ],
+                )
+            ).status_code == 200
+
+        home_before = (
+            await client.get(f"/api/worlds/{world_id}/game-view", params={"scene_id": "the_home"})
+        ).json()["visible_roles"]
+        dungeon_before = (
+            await client.get(
+                f"/api/worlds/{world_id}/game-view", params={"scene_id": "the_dungeon"}
+            )
+        ).json()["visible_roles"]
+        moved = await client.post(
+            f"/api/worlds/{world_id}/location", json={"location_id": "the_school"}
+        )
+        home_after = (
+            await client.get(f"/api/worlds/{world_id}/game-view", params={"scene_id": "the_home"})
+        ).json()["visible_roles"]
+        dungeon_after = (
+            await client.get(
+                f"/api/worlds/{world_id}/game-view", params={"scene_id": "the_dungeon"}
+            )
+        ).json()["visible_roles"]
+
+        assert moved.status_code == 200, moved.text
+        assert [item["role_id"] for item in home_before if item["kind"] == "npc"] == npc_ids[:5]
+        assert {item["role_id"] for item in dungeon_before} == set(npc_ids[5:])
+        assert [item["role_id"] for item in home_after] == npc_ids[:5]
+        assert {item["role_id"] for item in dungeon_after} == set(npc_ids[5:])
+
+
 async def test_world_deletion_keeps_global_player_role(tmp_path: Path) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
         protagonist = await _create_role(client)

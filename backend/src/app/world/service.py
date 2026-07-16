@@ -22,7 +22,7 @@ from app.game.locations import (
     LocationCandidate,
     LocationRule,
     RolePresence,
-    enforce_location_capacity,
+    allocate_role_presences,
     resolve_npc_location,
     weekday_for_day,
 )
@@ -609,7 +609,12 @@ class WorldService:
                         enabled=state.enabled,
                     )
                 )
-            resolved = enforce_location_capacity(presences)
+            resolved = allocate_role_presences(
+                presences,
+                world_id=world_id,
+                day=branch.day,
+                time_slot=branch.time_slot,
+            )
             visible_roles = (
                 ()
                 if scene.kind == "the_world_map"

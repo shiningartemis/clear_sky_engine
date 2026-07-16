@@ -14,7 +14,7 @@ LOCATION_IDS = (
     "the_hotel",
     "the_school",
 )
-OFF_SCENE = "off_scene"
+OFFLINE = "offline"
 WEEKDAYS = (
     "monday",
     "tuesday",
@@ -80,7 +80,7 @@ def resolve_npc_location(
     time_slot: str,
     role_id: int,
 ) -> str:
-    """选择最高优先级匹配规则；没有规则时 NPC 处于受控离屏状态。"""
+    """选择最高优先级匹配规则；没有规则时 NPC 处于显式离线状态。"""
 
     weekday_for_day(day)
     matching = [
@@ -92,7 +92,7 @@ def resolve_npc_location(
         and rule.candidates
     ]
     if not matching:
-        return OFF_SCENE
+        return OFFLINE
     selected = max(matching, key=lambda item: item.priority)
     if selected.mode == "fixed":
         return selected.candidates[0].location_id
@@ -108,32 +108,55 @@ def resolve_npc_location(
     return rng.choices(candidates, weights=weights, k=1)[0]
 
 
-def enforce_location_capacity(
+def allocate_role_presences(
     presences: Sequence[RolePresence],
+    *,
+    world_id: int,
+    day: int,
+    time_slot: str,
 ) -> tuple[RolePresence, ...]:
-    """每地点主角优先且最多六人；启用的溢出 NPC 仍作为离屏事实返回。"""
+    """按主地点、二次缓存和永久主角预留位返回全部启用角色的非空位置事实。"""
 
+    weekday_for_day(day)
     enabled = [item for item in presences if item.enabled]
-    location_order: list[str] = []
-    # 先按主角输入顺序建立地点顺序，避免更早出现的 NPC 改变主角相对顺序。
-    ordered_for_locations = [item for item in enabled if item.kind == "player"] + enabled
-    for item in ordered_for_locations:
-        if item.location_id != OFF_SCENE and item.location_id not in location_order:
-            location_order.append(item.location_id)
-
-    visible: list[RolePresence] = []
+    players = sorted(
+        (item for item in enabled if item.kind == "player"),
+        key=lambda item: item.role_id,
+    )
+    npcs = sorted(
+        (item for item in enabled if item.kind == "npc"),
+        key=lambda item: item.role_id,
+    )
+    allocated: dict[int, RolePresence] = {}
     overflow: list[RolePresence] = []
-    for location_id in location_order:
-        at_location = [item for item in enabled if item.location_id == location_id]
-        players = [item for item in at_location if item.kind == "player"]
-        npcs = sorted(
-            (item for item in at_location if item.kind == "npc"),
-            key=lambda item: item.role_id,
-        )
-        remaining = max(0, 6 - len(players))
-        visible.extend(players)
-        visible.extend(npcs[:remaining])
-        overflow.extend(replace(item, location_id=OFF_SCENE) for item in npcs[remaining:])
 
-    already_off_scene = [item for item in enabled if item.location_id == OFF_SCENE]
-    return tuple((*visible, *overflow, *already_off_scene))
+    for location_id in LOCATION_IDS:
+        at_location = [item for item in npcs if item.location_id == location_id]
+        for item in at_location[:5]:
+            allocated[item.role_id] = item
+        overflow.extend(at_location[5:])
+
+    # offline 和未知地点都不是可补位的主地点，避免后续创建无效地图链。
+    for item in npcs:
+        if item.location_id not in LOCATION_IDS:
+            allocated[item.role_id] = replace(item, location_id=OFFLINE)
+
+    # 先按角色 ID 建立稳定输入，再用固定摘要种子打乱，隔离调用方输入顺序。
+    overflow.sort(key=lambda item: item.role_id)
+    digest = hashlib.sha256(f"{world_id}:{day}:{time_slot}:overflow".encode()).digest()
+    random.Random(int.from_bytes(digest[:8], "big")).shuffle(overflow)
+
+    overflow_index = 0
+    for location_id in LOCATION_IDS:
+        occupied = sum(item.location_id == location_id for item in allocated.values())
+        for _ in range(5 - occupied):
+            if overflow_index >= len(overflow):
+                break
+            item = overflow[overflow_index]
+            allocated[item.role_id] = replace(item, location_id=location_id)
+            overflow_index += 1
+
+    for item in overflow[overflow_index:]:
+        allocated[item.role_id] = replace(item, location_id=OFFLINE)
+
+    return tuple((*players, *(allocated[item.role_id] for item in npcs)))
