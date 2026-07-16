@@ -153,13 +153,13 @@ def test_phase3_schema_has_required_tables_and_unique_keys(tmp_path: Path) -> No
     assert ("world_id", "role_id") in unique_sets
 
 
-def test_phase3_head_is_current(tmp_path: Path) -> None:
+def test_phase3_database_upgrades_to_current_head(tmp_path: Path) -> None:
     database_path = tmp_path / "app.db"
     upgrade_database(database_path, Path(__file__).parents[2] / "alembic.ini")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0003_phase3_world_roles"
+            "0004_merged_turn_loop"
         )
 
 

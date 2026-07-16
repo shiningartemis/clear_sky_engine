@@ -141,7 +141,6 @@ export function AiSettingsPage({ api = aiSettingsApi }: AiSettingsPageProps) {
           display_name: modelName,
           remote_model: remoteModel,
           capabilities: {},
-          defaults: {},
           enabled: true,
         });
         setState({ ...state, models: [...state.models, created] });

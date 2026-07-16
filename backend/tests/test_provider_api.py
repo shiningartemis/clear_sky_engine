@@ -86,12 +86,12 @@ async def test_model_crud_and_provider_delete_cascade(tmp_path: Path) -> None:
                 "display_name": "DeepSeek V4 Pro",
                 "remote_model": "deepseek-v4-pro",
                 "capabilities": {"reasoning": True, "tools": True},
-                "defaults": {"temperature": 0.7},
                 "enabled": True,
             },
         )
         assert created.status_code == 201
         model = created.json()
+        assert "defaults" not in model
 
         listed = await client.get("/api/models", params={"provider_id": provider_id})
         assert listed.status_code == 200
@@ -106,6 +106,30 @@ async def test_model_crud_and_provider_delete_cascade(tmp_path: Path) -> None:
         deleted_provider = await client.delete(f"/api/providers/{provider_id}")
         assert deleted_provider.status_code == 204
         assert (await client.get("/api/models", params={"provider_id": provider_id})).json() == []
+
+
+async def test_model_requests_reject_removed_defaults_field(tmp_path: Path) -> None:
+    async with provider_client(tmp_path) as client:
+        provider = await client.post(
+            "/api/providers",
+            json={
+                "name": "Primary",
+                "provider_type": "openai_compatible",
+                "base_url": "https://example.test/v1",
+            },
+        )
+
+        response = await client.post(
+            "/api/models",
+            json={
+                "provider_id": provider.json()["id"],
+                "display_name": "Model A",
+                "remote_model": "model-a",
+                "defaults": {"temperature": 0.7},
+            },
+        )
+
+        assert response.status_code == 422
 
 
 async def test_conflicts_roll_back_without_leaking_api_key(tmp_path: Path) -> None:

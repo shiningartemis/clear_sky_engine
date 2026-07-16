@@ -80,20 +80,22 @@ class ProviderResponse(BaseModel):
 
 
 class ModelCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     provider_id: int = Field(gt=0)
     display_name: Name
     remote_model: RemoteModel
     capabilities: dict[str, JsonValue] = Field(default_factory=dict)
-    defaults: dict[str, JsonValue] = Field(default_factory=dict)
     enabled: bool = True
 
 
 class ModelUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     provider_id: int | None = Field(default=None, gt=0)
     display_name: Name | None = None
     remote_model: RemoteModel | None = None
     capabilities: dict[str, JsonValue] | None = None
-    defaults: dict[str, JsonValue] | None = None
     enabled: bool | None = None
 
 
@@ -105,7 +107,6 @@ class ModelResponse(BaseModel):
     display_name: str
     remote_model: str
     capabilities: dict[str, JsonValue]
-    defaults: dict[str, JsonValue]
     enabled: bool
     created_at: datetime
     updated_at: datetime
@@ -234,7 +235,6 @@ def create_provider_router(
                 display_name=payload.display_name,
                 remote_model=payload.remote_model,
                 capabilities=payload.capabilities,
-                defaults=payload.defaults,
                 enabled=payload.enabled,
             )
         except AiSettingsNotFoundError as error:
@@ -258,7 +258,6 @@ def create_provider_router(
                     display_name=payload.display_name,
                     remote_model=payload.remote_model,
                     capabilities=payload.capabilities,
-                    defaults=payload.defaults,
                     enabled=payload.enabled,
                 ),
             )

@@ -38,7 +38,7 @@ def test_empty_database_upgrades_to_alembic_head(tmp_path: Path) -> None:
     assert "alembic_version" in inspect(engine).get_table_names()
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0003_phase3_world_roles"
+            "0004_merged_turn_loop"
         )
 
 
@@ -58,5 +58,5 @@ def test_existing_initial_database_upgrades_to_current_schema(tmp_path: Path) ->
     assert {"ai_provider", "ai_model"}.issubset(inspect(engine).get_table_names())
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0003_phase3_world_roles"
+            "0004_merged_turn_loop"
         )

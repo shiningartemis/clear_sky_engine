@@ -272,6 +272,49 @@ async def test_duplicate_npc_and_player_removal_are_conflicts(tmp_path: Path) ->
         assert player_removal.status_code == 409
 
 
+async def test_world_roles_create_and_cascade_empty_memories(tmp_path: Path) -> None:
+    async with configured_world_client(tmp_path) as (client, world_id, npc_role_id):
+        config = AppConfig.for_local_app_data(tmp_path)
+        engine = create_sqlite_engine(config.paths.database_path)
+        with engine.connect() as connection:
+            memories = connection.execute(
+                text(
+                    "SELECT role_id, memory, version FROM world_role_memory "
+                    "WHERE world_id = :world_id ORDER BY role_id"
+                ),
+                {"world_id": world_id},
+            ).all()
+        assert memories == [(1, "", 1), (npc_role_id, "", 1)]
+
+        removed = await client.delete(f"/api/worlds/{world_id}/roles/{npc_role_id}")
+
+        assert removed.status_code == 204
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text(
+                        "SELECT COUNT(*) FROM world_role_memory "
+                        "WHERE world_id = :world_id AND role_id = :role_id"
+                    ),
+                    {"world_id": world_id, "role_id": npc_role_id},
+                ).scalar_one()
+                == 0
+            )
+
+        deleted = await client.delete(f"/api/worlds/{world_id}")
+
+        assert deleted.status_code == 204
+        with engine.connect() as connection:
+            assert (
+                connection.execute(
+                    text("SELECT COUNT(*) FROM world_role_memory WHERE world_id = :world_id"),
+                    {"world_id": world_id},
+                ).scalar_one()
+                == 0
+            )
+        engine.dispose()
+
+
 async def test_world_rejects_the_twenty_first_npc(tmp_path: Path) -> None:
     npc_names = [f"NPC{index:02d}" for index in range(1, 22)]
     assets = {"天": "jpg", **dict.fromkeys(npc_names, "jpg")}

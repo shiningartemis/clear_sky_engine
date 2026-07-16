@@ -16,6 +16,7 @@ def test_provider_tables_upgrade_with_constraints(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     inspector = inspect(engine)
     assert {"ai_provider", "ai_model"}.issubset(inspector.get_table_names())
+    assert "defaults_json" not in {column["name"] for column in inspector.get_columns("ai_model")}
     model_foreign_keys = inspector.get_foreign_keys("ai_model")
     assert model_foreign_keys == [
         {
@@ -49,9 +50,8 @@ def test_provider_and_model_unique_constraints_reject_duplicates(tmp_path: Path)
         connection.execute(
             text(
                 "INSERT INTO ai_model "
-                "(provider_id, display_name, remote_model, "
-                "capabilities_json, defaults_json, enabled) "
-                "VALUES (:provider_id, 'Model A', 'model-a', '{}', '{}', 1)"
+                "(provider_id, display_name, remote_model, capabilities_json, enabled) "
+                "VALUES (:provider_id, 'Model A', 'model-a', '{}', 1)"
             ),
             {"provider_id": provider_id},
         )
@@ -69,9 +69,8 @@ def test_provider_and_model_unique_constraints_reject_duplicates(tmp_path: Path)
         connection.execute(
             text(
                 "INSERT INTO ai_model "
-                "(provider_id, display_name, remote_model, "
-                "capabilities_json, defaults_json, enabled) "
-                "VALUES (:provider_id, 'Duplicate', 'model-a', '{}', '{}', 1)"
+                "(provider_id, display_name, remote_model, capabilities_json, enabled) "
+                "VALUES (:provider_id, 'Duplicate', 'model-a', '{}', 1)"
             ),
             {"provider_id": provider_id},
         )

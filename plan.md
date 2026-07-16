@@ -31,8 +31,8 @@
 
 ## 2. 当前状态
 
-- 当前执行点：任务 1——合并阶段数据库与持久化模型。
-- 当前基线提交：`ba0a44c docs: align merged phase 4 and 5 design`。
+- 当前执行点：任务 2——全局 AI 任务设置后端；任务 1 已完成并停止在任务边界。
+- 任务 1 开始基线提交：`7cf00d2 docs: define merged phase 4 and 5 implementation plan`。
 - [x] 阶段 1：工程、本地运行、安全启动器、检查脚本和 onedir 构建基线完成；干净 Windows 11 x64 仍作为最终发布门禁保留。
 - [x] 阶段 2：Provider/Model 管理、OpenAI-compatible、DeepSeek、普通/流式/JSON/Tool Calls 和真实 API 验证完成。
 - [x] 阶段 3：全局角色、世界、动态属性、位置规则、地图、真实立绘和阶段 3 浏览器流程完成。
@@ -116,12 +116,22 @@
 - Create: `backend/src/app/story/__init__.py`
 - Create: `backend/src/app/story/models.py`
 - Modify: `backend/src/app/ai/models.py`
-- Modify: `backend/src/app/character/models.py`
+- Modify: `backend/src/app/ai/service.py`
+- Modify: `backend/src/app/api/providers.py`
 - Modify: `backend/src/app/world/models.py`
 - Modify: `backend/src/app/world/service.py`
 - Create: `backend/tests/test_phase45_migrations.py`
+- Modify: `backend/tests/test_migrations.py`
+- Modify: `backend/tests/test_phase3_migrations.py`
 - Modify: `backend/tests/test_provider_migrations.py`
+- Modify: `backend/tests/test_provider_api.py`
+- Modify: `backend/tests/ai/test_live_config.py`
 - Modify: `backend/tests/world/test_world_api.py`
+- Modify generated: `frontend/src/api/generated.ts` through `scripts/generate-api.ps1`
+- Modify: `frontend/src/api/aiSettings.ts`
+- Modify: `frontend/src/api/aiSettings.test.ts`
+- Modify: `frontend/src/features/ai-settings/AiSettingsPage.tsx`
+- Modify: `frontend/src/features/ai-settings/AiSettingsPage.test.tsx`
 
 **Persistent contract**
 
@@ -179,12 +189,12 @@ class WorldRoleMemory(Base):
 
 **Steps**
 
-- [ ] 先写空库到 head、`0003 -> 0004`、固定任务行、移除 `defaults_json`、既有世界角色记忆回填、所有外键/唯一/检查约束和级联删除测试。
-- [ ] 运行 `uv run pytest backend/tests/test_phase45_migrations.py backend/tests/test_provider_migrations.py -q`，确认因 `0004` 和模型不存在而失败。
-- [ ] 实现迁移与 ORM；不得编辑 `0001`–`0003` 已发布迁移。
-- [ ] 验证 downgrade 后可重新 upgrade 到 head，且升级已有 Provider/Model/世界/角色数据不丢失。
-- [ ] 运行聚焦测试、Ruff、Pyright，再运行 `./scripts/check.ps1`。
-- [ ] 更新本文件当前执行点、勾选项和验证记录；精确暂存本任务文件并提交 `feat: add merged turn persistence schema`。
+- [x] 先写空库到 head、`0003 -> 0004`、固定任务行、移除 `defaults_json`、既有世界角色记忆回填、所有外键/唯一/检查约束和级联删除测试。
+- [x] 运行 `uv run pytest backend/tests/test_phase45_migrations.py backend/tests/test_provider_migrations.py -q`，确认因 `0004` 和模型不存在而失败。
+- [x] 实现迁移与 ORM；不得编辑 `0001`–`0003` 已发布迁移。
+- [x] 验证 downgrade 后可重新 upgrade 到 head，且升级已有 Provider/Model/世界/角色数据不丢失。
+- [x] 运行聚焦测试、Ruff、Pyright，再运行 `./scripts/check.ps1`。
+- [x] 更新本文件当前执行点、勾选项和验证记录；精确暂存本任务文件并提交 `feat: add merged turn persistence schema`。
 
 **Expected:** 所有命令 exit 0；SQLite schema 不存在运行表；两条任务设置分别带稳定 task_key，记忆和轮次表约束生效。
 
@@ -252,7 +262,7 @@ PROTECTED_PROVIDER_OPTION_KEYS = frozenset(
 
 - [ ] 先写固定 task_key、模型存在/启用、字段范围、20≤50、JSON 根对象、保留字段冲突、版本递增和配置快照不可变测试。
 - [ ] 写 API 测试：`GET /api/ai-task-settings` 固定返回两项；`PUT /api/ai-task-settings/{task_key}` 更新一项；缺模型仍可查看但不能作为可运行快照。
-- [ ] 写 Provider API 回归并移除 Model 的 `defaults` 请求/响应字段，确认旧请求字段以 422 拒绝。
+- [ ] 保留任务 1 已完成的 Provider API 回归：Model 请求/响应不含 `defaults`，旧请求字段以 422 拒绝。
 - [ ] 运行聚焦测试确认按预期失败。
 - [ ] 实现 Store/Service/Router，在 `create_app` 注入同一服务；慢 AI I/O 不在这些同步短事务中发生。
 - [ ] 运行 `./scripts/generate-api.ps1` 生成类型，不手改 `frontend/src/api/generated.ts`。
@@ -279,7 +289,7 @@ PROTECTED_PROVIDER_OPTION_KEYS = frozenset(
 - 每张卡片显式选择模型并编辑任务参数。属性与记忆卡片显示目标 20、硬上限 50，校验目标不得大于上限。
 - Provider 参数使用独立多行 JSON 编辑框，提供“格式化 JSON”；语法错误显示行号、列号，根节点非对象或保留字段冲突定位到字段。
 - 保存 loading 时禁用本卡片；成功显示“下一次新轮次生效”；失败保留全部输入。
-- 删除 Model `defaults` 表单，避免第二参数来源。
+- Model `defaults` 表单已在任务 1 随持久化/API 契约原子移除；本任务不得重新引入第二参数来源。
 
 推荐的前端解析边界：
 
@@ -296,7 +306,7 @@ export function parseJsonObjectEditor(source: string): JsonObjectParseResult;
 
 **Steps**
 
-- [ ] 先写 API 转换、两个任务卡片、字段校验、格式化、语法行列、冲突字段、loading/error/success 和删除 Model defaults 的 RTL/Vitest 测试。
+- [ ] 先写 API 转换、两个任务卡片、字段校验、格式化、语法行列、冲突字段及 loading/error/success 的 RTL/Vitest 测试，并保留任务 1 的 Model defaults 消失回归。
 - [ ] 运行 `npm --prefix frontend run test -- --run src/api/aiSettings.test.ts src/features/ai-settings/AiSettingsPage.test.tsx`，确认新行为失败。
 - [ ] 最小实现 JSON 编辑器和固定任务表单，不引入编辑器或表单依赖。
 - [ ] 运行聚焦测试、Biome、TypeScript、Vite build 和 `./scripts/check.ps1`。
@@ -858,6 +868,7 @@ npm --prefix frontend run test:e2e:live
 | 2026-07-12 | 阶段 2 | `pytest -m live_ai`、离线全量检查 | DeepSeek 普通、流式、thinking、JSON、Tool Calls 与离线回归通过；密钥未入库外边界 |
 | 2026-07-15 | 阶段 3 | `scripts/check.ps1`、`frontend/e2e/phase3-world-map.spec.ts`、用户确认 | 角色、世界、属性、地图、位置规则、三张真实立绘和浏览器流程完成；世界创建唯一键 bug 已修复 |
 | 2026-07-16 | 合并设计 | 核心文档契约扫描、`git diff --check`、用户逐项确认 | 阶段 4+5 合并设计已写入 `需求与产品设计.md`、`技术选型文档.md`，提交 `ba0a44c` |
+| 2026-07-16 | 任务 1 | RED：迁移聚焦测试 `7 failed, 1 passed`，Model 后端 `2 failed`，前端边界 `1 failed`；GREEN：`uv run pytest backend/tests/test_phase45_migrations.py -q`、`scripts/check.ps1`、独立代码审查 | 迁移聚焦 `7 passed`；完整检查后端 `177 passed, 6 deselected`、前端 `127 passed`，Ruff/Pyright/Biome/TypeScript/Vite build 全部通过；SQLite `3.53.1`；审查无 Critical/Important/Minor；未改 Provider 传输，未重复付费真实 AI 测试 |
 
 后续每个任务在完成提交前追加一行，至少记录日期、精确命令、pass/fail、测试数量或关键证据、未验证项。
 
@@ -887,3 +898,4 @@ npm --prefix frontend run test:e2e:live
 | 2026-07-16 | 第一版不开放分支、快照或独立历史页 | 保留内部初始 branch，只在游戏主界面展示可折叠轮次卡片 |
 | 2026-07-16 | 轮次 Playwright 只用真实 AI | 不建设 mock/offline AI 轮次 Playwright；底层 fake/respx 回归仍必须完整 |
 | 2026-07-16 | 异常闭环以专项 code review 为必需门禁 | 不人为制造真实 Provider 异常；自然异常转为永久回归 |
+| 2026-07-16 | `ai_model.defaults_json` 的数据库、Service、API、生成类型和现有前端入口在任务 1 原子移除 | 避免迁移完成后出现 ORM/API 仍读写已删除列的断裂状态；任务 2、3 只保留回归并实现任务设置能力 |

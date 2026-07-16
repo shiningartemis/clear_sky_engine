@@ -43,7 +43,6 @@ class AiModel(Base):
     display_name: Mapped[str] = mapped_column(String(120))
     remote_model: Mapped[str] = mapped_column(String(255))
     capabilities_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
-    defaults_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     enabled: Mapped[bool] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

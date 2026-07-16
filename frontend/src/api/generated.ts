@@ -641,10 +641,6 @@ export interface components {
             capabilities?: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
-            /** Defaults */
-            defaults?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            };
             /** Display Name */
             display_name: string;
             /**
@@ -668,10 +664,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** Defaults */
-            defaults: {
-                [key: string]: components["schemas"]["JsonValue"];
-            };
             /** Display Name */
             display_name: string;
             /** Enabled */
@@ -692,10 +684,6 @@ export interface components {
         ModelUpdate: {
             /** Capabilities */
             capabilities?: {
-                [key: string]: components["schemas"]["JsonValue"];
-            } | null;
-            /** Defaults */
-            defaults?: {
                 [key: string]: components["schemas"]["JsonValue"];
             } | null;
             /** Display Name */

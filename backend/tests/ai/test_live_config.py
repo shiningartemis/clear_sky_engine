@@ -37,7 +37,6 @@ def create_deepseek_settings(
             display_name="DeepSeek V4 Flash",
             remote_model="deepseek-v4-flash",
             capabilities={},
-            defaults={},
             enabled=True,
         )
     return service, provider.id

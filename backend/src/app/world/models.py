@@ -6,11 +6,14 @@ from pydantic import JsonValue
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,6 +35,7 @@ class World(Base):
 
 class WorldBranch(Base):
     __tablename__ = "world_branch"
+    __table_args__ = (Index("uq_world_branch_world_id_id", "world_id", "id", unique=True),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     world_id: Mapped[int] = mapped_column(ForeignKey("world.id", ondelete="CASCADE"))
@@ -64,6 +68,29 @@ class WorldRoleState(Base):
     enabled: Mapped[bool] = mapped_column(Boolean)
     change_values_json: Mapped[dict[str, JsonValue]] = mapped_column(JSON)
     version: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class WorldRoleMemory(Base):
+    """长期记忆严格按世界和角色唯一，并随世界角色级联删除。"""
+
+    __tablename__ = "world_role_memory"
+    __table_args__ = (
+        CheckConstraint("version >= 1", name="ck_world_role_memory_version"),
+        ForeignKeyConstraint(
+            ["world_id", "role_id"],
+            ["world_role_state.world_id", "world_role_state.role_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("world_id", "role_id", name="uq_world_role_memory_world_role"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    world_id: Mapped[int] = mapped_column(Integer)
+    role_id: Mapped[int] = mapped_column(Integer)
+    memory: Mapped[str] = mapped_column(Text, default="")
+    version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 

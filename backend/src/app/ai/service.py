@@ -44,7 +44,6 @@ class ModelRecord:
     display_name: str
     remote_model: str
     capabilities: dict[str, JsonValue]
-    defaults: dict[str, JsonValue]
     enabled: bool
     created_at: datetime
     updated_at: datetime
@@ -76,7 +75,6 @@ class ModelChanges:
     display_name: str | None = None
     remote_model: str | None = None
     capabilities: dict[str, JsonValue] | None = None
-    defaults: dict[str, JsonValue] | None = None
     enabled: bool | None = None
 
 
@@ -108,7 +106,6 @@ class AiSettingsService:
             display_name=model.display_name,
             remote_model=model.remote_model,
             capabilities=model.capabilities_json,
-            defaults=model.defaults_json,
             enabled=model.enabled,
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -232,7 +229,6 @@ class AiSettingsService:
         display_name: str,
         remote_model: str,
         capabilities: dict[str, JsonValue],
-        defaults: dict[str, JsonValue],
         enabled: bool,
     ) -> ModelRecord:
         now = datetime.now(UTC)
@@ -241,7 +237,6 @@ class AiSettingsService:
             display_name=display_name,
             remote_model=remote_model,
             capabilities_json=capabilities,
-            defaults_json=defaults,
             enabled=enabled,
             created_at=now,
             updated_at=now,
@@ -271,8 +266,6 @@ class AiSettingsService:
                     setattr(model, field_name, value)
             if changes.capabilities is not None:
                 model.capabilities_json = changes.capabilities
-            if changes.defaults is not None:
-                model.defaults_json = changes.defaults
             model.updated_at = datetime.now(UTC)
             self._commit(session, "Provider 下的远端模型已存在")
             session.refresh(model)

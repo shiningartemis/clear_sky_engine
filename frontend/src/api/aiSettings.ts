@@ -57,7 +57,6 @@ function isModel(value: unknown): value is ModelResponse {
     typeof value.remote_model === "string" &&
     typeof value.enabled === "boolean" &&
     isRecord(value.capabilities) &&
-    isRecord(value.defaults) &&
     typeof value.created_at === "string" &&
     typeof value.updated_at === "string"
   );

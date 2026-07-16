@@ -32,6 +32,7 @@ from app.world.models import (
     CharacterLocationRule,
     World,
     WorldBranch,
+    WorldRoleMemory,
     WorldRoleState,
 )
 from app.world.store import WorldStore
@@ -319,13 +320,23 @@ class WorldService:
                 store.add_all(branch)
                 store.flush()
                 world.active_branch_id = branch.id
+                state = WorldRoleState(
+                    world_id=world.id,
+                    role_id=role.id,
+                    kind="player",
+                    enabled=True,
+                    change_values_json={},
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                )
+                store.add_all(state)
+                store.flush()
                 store.add_all(
-                    WorldRoleState(
+                    WorldRoleMemory(
                         world_id=world.id,
                         role_id=role.id,
-                        kind="player",
-                        enabled=True,
-                        change_values_json={},
+                        memory="",
                         version=1,
                         created_at=now,
                         updated_at=now,
@@ -382,13 +393,28 @@ class WorldService:
                 raise WorldNotFoundError("角色不存在")
             if store.count_npcs(world_id) >= 20:
                 raise WorldConflictError("每个世界最多包含 20 个 NPC")
+            state = WorldRoleState(
+                world_id=world_id,
+                role_id=role_id,
+                kind="npc",
+                enabled=True,
+                change_values_json={},
+                version=1,
+                created_at=now,
+                updated_at=now,
+            )
+            store.add_all(state)
+            try:
+                # 复合外键没有 relationship 可推导顺序，先落父行再写同事务记忆行。
+                store.flush()
+            except IntegrityError:
+                session.rollback()
+                raise WorldConflictError("角色已存在于当前世界") from None
             store.add_all(
-                WorldRoleState(
+                WorldRoleMemory(
                     world_id=world_id,
                     role_id=role_id,
-                    kind="npc",
-                    enabled=True,
-                    change_values_json={},
+                    memory="",
                     version=1,
                     created_at=now,
                     updated_at=now,
