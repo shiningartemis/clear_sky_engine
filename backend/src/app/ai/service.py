@@ -1,15 +1,33 @@
-"""Provider 与模型目录的事务及密钥边界。"""
+"""Provider、模型目录与全局 AI 任务设置的事务及密钥边界。"""
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 
 from pydantic import SecretStr
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.ai.models import AiModel, AiProvider
 from app.ai.store import AiSettingsStore
 from app.ai.types import JsonValue
+from app.workflow.models import AiTaskSetting
+from app.workflow.settings import (
+    ReasoningEffort,
+    StructuredOutputMode,
+    TaskKey,
+    TaskSettingConfigurationError,
+    TaskSettingNotFoundError,
+    TaskSettingPersistenceError,
+    TaskSettingRecord,
+    TaskSettingSnapshot,
+    TaskSettingUpdate,
+    TaskSettingValidationError,
+    conflicting_provider_option_keys,
+    freeze_json_object,
+)
+from app.workflow.store import TaskSettingsStore
 
 
 class AiSettingsNotFoundError(Exception):
@@ -112,6 +130,56 @@ class AiSettingsService:
         )
 
     @staticmethod
+    def _task_setting_record(setting: AiTaskSetting) -> TaskSettingRecord:
+        reasoning_effort = setting.reasoning_effort
+        if reasoning_effort not in {None, "high", "max"}:
+            raise TaskSettingValidationError("任务设置包含无效的思考强度")
+        return TaskSettingRecord(
+            task_key=TaskKey(setting.task_key),
+            model_id=setting.model_id,
+            temperature=setting.temperature,
+            max_output_tokens=setting.max_output_tokens,
+            reasoning_effort=cast("ReasoningEffort | None", reasoning_effort),
+            timeout_seconds=setting.timeout_seconds,
+            extra_prompt=setting.extra_prompt,
+            structured_output_mode=StructuredOutputMode(setting.structured_output_mode),
+            # JSON 对象必须脱离 Session，后续保存和调用方修改都不能污染已读配置。
+            provider_options=deepcopy(setting.provider_options_json),
+            memory_target_chars=setting.memory_target_chars,
+            memory_max_chars=setting.memory_max_chars,
+            version=setting.version,
+            updated_at=setting.updated_at,
+        )
+
+    @staticmethod
+    def _validate_task_values(task_key: TaskKey, values: TaskSettingUpdate) -> None:
+        conflicts = conflicting_provider_option_keys(values.provider_options)
+        if conflicts:
+            raise TaskSettingValidationError(
+                f"provider_options 与程序拥有字段冲突: {', '.join(conflicts)}"
+            )
+        if task_key is TaskKey.LOCATION_SIMULATION:
+            if values.memory_target_chars is not None or values.memory_max_chars is not None:
+                raise TaskSettingValidationError("地点推演不得包含记忆字数设置")
+            return
+        if values.memory_target_chars is None or values.memory_max_chars is None:
+            raise TaskSettingValidationError("属性与记忆任务必须包含记忆字数设置")
+        if values.memory_target_chars > values.memory_max_chars:
+            raise TaskSettingValidationError("记忆字数目标不得大于硬上限")
+
+    @staticmethod
+    def _validate_selected_model(model: AiModel | None, mode: StructuredOutputMode) -> None:
+        if model is None:
+            raise TaskSettingConfigurationError("模型不存在")
+        if not model.enabled:
+            raise TaskSettingConfigurationError("模型未启用")
+        if (
+            mode is StructuredOutputMode.NATIVE
+            and model.capabilities_json.get("json_output") is not True
+        ):
+            raise TaskSettingConfigurationError("所选模型不支持原生 JSON 输出")
+
+    @staticmethod
     def _commit(session: Session, conflict_message: str) -> None:
         conflicted = False
         try:
@@ -123,6 +191,19 @@ class AiSettingsService:
         if conflicted:
             # 离开 except 后再抛出，彻底丢弃可能携带 SQL 参数的异常上下文。
             raise AiSettingsConflictError(conflict_message)
+
+    @staticmethod
+    def _commit_task_setting(session: Session) -> None:
+        failed = False
+        try:
+            session.commit()
+        except SQLAlchemyError:
+            # SQL 参数可能含自由 Provider JSON 或额外提示词，必须在事务边界显式回滚。
+            session.rollback()
+            failed = True
+        if failed:
+            # 离开 except 后抛固定错误，确保原始异常链和敏感 SQL 参数不可达。
+            raise TaskSettingPersistenceError("AI 任务设置保存失败")
 
     def list_providers(self) -> list[ProviderRecord]:
         with self._session_factory() as session:
@@ -206,7 +287,7 @@ class AiSettingsService:
             if provider is None:
                 raise AiSettingsNotFoundError("Provider 不存在")
             store.delete_provider(provider)
-            session.commit()
+            self._commit(session, "Provider 的模型已被 AI 任务使用")
 
     def list_models(self, provider_id: int | None) -> list[ModelRecord]:
         with self._session_factory() as session:
@@ -278,4 +359,86 @@ class AiSettingsService:
             if model is None:
                 raise AiSettingsNotFoundError("模型不存在")
             store.delete_model(model)
-            session.commit()
+            self._commit(session, "模型已被 AI 任务使用")
+
+    def list_task_settings(self) -> list[TaskSettingRecord]:
+        with self._session_factory() as session:
+            return [
+                self._task_setting_record(item)
+                for item in TaskSettingsStore(session).list_settings()
+            ]
+
+    def get_task_setting(self, task_key: TaskKey) -> TaskSettingRecord:
+        with self._session_factory() as session:
+            setting = TaskSettingsStore(session).get_setting(task_key)
+            if setting is None:
+                raise TaskSettingNotFoundError("AI 任务设置不存在")
+            return self._task_setting_record(setting)
+
+    def update_task_setting(
+        self,
+        task_key: TaskKey,
+        values: TaskSettingUpdate,
+    ) -> TaskSettingRecord:
+        self._validate_task_values(task_key, values)
+        with self._session_factory() as session:
+            setting = TaskSettingsStore(session).get_setting(task_key)
+            if setting is None:
+                raise TaskSettingNotFoundError("AI 任务设置不存在")
+            if values.model_id is not None:
+                model = AiSettingsStore(session).get_model(values.model_id)
+                self._validate_selected_model(model, values.structured_output_mode)
+            setting.model_id = values.model_id
+            setting.temperature = values.temperature
+            setting.max_output_tokens = values.max_output_tokens
+            setting.reasoning_effort = values.reasoning_effort
+            setting.timeout_seconds = values.timeout_seconds
+            setting.extra_prompt = values.extra_prompt
+            setting.structured_output_mode = values.structured_output_mode.value
+            setting.provider_options_json = deepcopy(values.provider_options)
+            setting.memory_target_chars = values.memory_target_chars
+            setting.memory_max_chars = values.memory_max_chars
+            # 版本只由成功保存递增；运行中的旧快照继续使用原版本。
+            setting.version += 1
+            setting.updated_at = datetime.now(UTC)
+            self._commit_task_setting(session)
+            session.refresh(setting)
+            return self._task_setting_record(setting)
+
+    def get_runnable_task_setting(self, task_key: TaskKey) -> TaskSettingSnapshot:
+        """在一个短 Session 内冻结任务与模型能力，不执行任何慢 AI I/O。"""
+
+        with self._session_factory() as session:
+            setting = TaskSettingsStore(session).get_setting(task_key)
+            if setting is None:
+                raise TaskSettingNotFoundError("AI 任务设置不存在")
+            record = self._task_setting_record(setting)
+            if setting.model_id is None:
+                raise TaskSettingConfigurationError("AI 任务尚未选择模型")
+            model = AiSettingsStore(session).get_model(setting.model_id)
+            self._validate_selected_model(model, record.structured_output_mode)
+            if record.structured_output_mode is StructuredOutputMode.AUTO:
+                supports_native = (
+                    model is not None and model.capabilities_json.get("json_output") is True
+                )
+                resolved = (
+                    StructuredOutputMode.NATIVE if supports_native else StructuredOutputMode.PROMPT
+                )
+            else:
+                resolved = record.structured_output_mode
+            return TaskSettingSnapshot(
+                task_key=record.task_key,
+                model_id=setting.model_id,
+                temperature=record.temperature,
+                max_output_tokens=record.max_output_tokens,
+                reasoning_effort=record.reasoning_effort,
+                timeout_seconds=record.timeout_seconds,
+                extra_prompt=record.extra_prompt,
+                structured_output_mode=record.structured_output_mode,
+                provider_options=freeze_json_object(record.provider_options),
+                memory_target_chars=record.memory_target_chars,
+                memory_max_chars=record.memory_max_chars,
+                version=record.version,
+                updated_at=record.updated_at,
+                resolved_structured_output_mode=resolved,
+            )

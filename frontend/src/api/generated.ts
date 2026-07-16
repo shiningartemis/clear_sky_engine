@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/ai-task-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Settings */
+        get: operations["_list_settings_api_ai_task_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ai-task-settings/{task_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Setting */
+        put: operations["_update_setting_api_ai_task_settings__task_key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/app/shutdown": {
         parameters: {
             query?: never;
@@ -840,6 +874,75 @@ export interface components {
              */
             status: "shutting_down";
         };
+        /**
+         * StructuredOutputMode
+         * @enum {string}
+         */
+        StructuredOutputMode: "auto" | "native" | "prompt";
+        /**
+         * TaskKey
+         * @enum {string}
+         */
+        TaskKey: "location_simulation" | "attribute_memory_analysis";
+        /** TaskSettingResponse */
+        TaskSettingResponse: {
+            /** Extra Prompt */
+            extra_prompt: string;
+            /** Max Output Tokens */
+            max_output_tokens: number | null;
+            /** Memory Max Chars */
+            memory_max_chars: number | null;
+            /** Memory Target Chars */
+            memory_target_chars: number | null;
+            /** Model Id */
+            model_id: number | null;
+            /** Provider Options */
+            provider_options: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Reasoning Effort */
+            reasoning_effort: ("high" | "max") | null;
+            structured_output_mode: components["schemas"]["StructuredOutputMode"];
+            task_key: components["schemas"]["TaskKey"];
+            /** Temperature */
+            temperature: number | null;
+            /** Timeout Seconds */
+            timeout_seconds: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * TaskSettingUpdate
+         * @description 保存一个固定任务时由 API 和 Service 共用的受控值对象。
+         */
+        TaskSettingUpdate: {
+            /** Extra Prompt */
+            extra_prompt: string;
+            /** Max Output Tokens */
+            max_output_tokens: number | null;
+            /** Memory Max Chars */
+            memory_max_chars: number | null;
+            /** Memory Target Chars */
+            memory_target_chars: number | null;
+            /** Model Id */
+            model_id: number | null;
+            /** Provider Options */
+            provider_options: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Reasoning Effort */
+            reasoning_effort: ("high" | "max") | null;
+            structured_output_mode: components["schemas"]["StructuredOutputMode"];
+            /** Temperature */
+            temperature: number | null;
+            /** Timeout Seconds */
+            timeout_seconds: number;
+        };
         /** TokenUsage */
         TokenUsage: {
             /** Input Tokens */
@@ -938,6 +1041,61 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    _list_settings_api_ai_task_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSettingResponse"][];
+                };
+            };
+        };
+    };
+    _update_setting_api_ai_task_settings__task_key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_key: components["schemas"]["TaskKey"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskSettingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSettingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     _shutdown_api_app_shutdown_post: {
         parameters: {
             query?: never;

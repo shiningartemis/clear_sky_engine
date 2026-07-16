@@ -7,12 +7,14 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from pydantic import SecretStr
 
 from app.ai.contracts import ProviderRegistry
 from app.ai.deepseek import DeepSeekProvider
 from app.ai.openai_compatible import OpenAICompatibleProvider
 from app.ai.service import AiSettingsService
+from app.api.ai_tasks import create_ai_task_router, safe_request_validation_error
 from app.api.application import create_application_router
 from app.api.assets import create_asset_router
 from app.api.health import create_health_router
@@ -86,8 +88,11 @@ def create_app(
         version=resolved_config.app_version,
         lifespan=lifespan,
     )
+    # 默认 422 会回显原始 input；全局剥离它，避免任何 DTO 错误泄漏 API Key。
+    app.add_exception_handler(RequestValidationError, safe_request_validation_error)
     app.include_router(create_health_router(engine, resolved_config.app_version))
     app.include_router(create_provider_router(ai_settings_service, get_provider_registry))
+    app.include_router(create_ai_task_router(ai_settings_service))
     app.include_router(create_role_router(role_service))
     app.include_router(create_world_router(world_service))
     app.include_router(create_asset_router(resource_catalog))

@@ -102,6 +102,11 @@ async def test_model_crud_and_provider_delete_cascade(tmp_path: Path) -> None:
         )
         assert updated.status_code == 200
         assert updated.json()["display_name"] == "DeepSeek V4 Pro Updated"
+        assert "defaults" not in updated.json()
+
+        fetched = await client.get(f"/api/models/{model['id']}")
+        assert fetched.status_code == 200
+        assert "defaults" not in fetched.json()
 
         deleted_provider = await client.delete(f"/api/providers/{provider_id}")
         assert deleted_provider.status_code == 204
@@ -130,6 +135,57 @@ async def test_model_requests_reject_removed_defaults_field(tmp_path: Path) -> N
         )
 
         assert response.status_code == 422
+
+        update_response = await client.patch(
+            "/api/models/1",
+            json={"defaults": {"temperature": 0.7}},
+        )
+        assert update_response.status_code == 422
+
+
+async def test_selected_task_model_and_provider_cannot_be_deleted(tmp_path: Path) -> None:
+    async with provider_client(tmp_path) as client:
+        provider = await client.post(
+            "/api/providers",
+            json={
+                "name": "Primary",
+                "provider_type": "openai_compatible",
+                "base_url": "https://example.test/v1",
+            },
+        )
+        model = await client.post(
+            "/api/models",
+            json={
+                "provider_id": provider.json()["id"],
+                "display_name": "Model A",
+                "remote_model": "model-a",
+                "capabilities": {"json_output": True},
+            },
+        )
+        configured = await client.put(
+            "/api/ai-task-settings/location_simulation",
+            json={
+                "model_id": model.json()["id"],
+                "temperature": None,
+                "max_output_tokens": None,
+                "reasoning_effort": None,
+                "timeout_seconds": 120,
+                "extra_prompt": "",
+                "structured_output_mode": "auto",
+                "provider_options": {},
+                "memory_target_chars": None,
+                "memory_max_chars": None,
+            },
+        )
+        assert configured.status_code == 200
+
+        model_delete = await client.delete(f"/api/models/{model.json()['id']}")
+        provider_delete = await client.delete(f"/api/providers/{provider.json()['id']}")
+
+    assert model_delete.status_code == 409
+    assert model_delete.json() == {"detail": "模型已被 AI 任务使用"}
+    assert provider_delete.status_code == 409
+    assert provider_delete.json() == {"detail": "Provider 的模型已被 AI 任务使用"}
 
 
 async def test_conflicts_roll_back_without_leaking_api_key(tmp_path: Path) -> None:

@@ -206,6 +206,8 @@ def create_provider_router(
             service.delete_provider(provider_id)
         except AiSettingsNotFoundError as error:
             raise _not_found(error) from None
+        except AiSettingsConflictError as error:
+            raise _conflict(error) from None
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     async def _test_provider_connection(
@@ -272,6 +274,8 @@ def create_provider_router(
             service.delete_model(model_id)
         except AiSettingsNotFoundError as error:
             raise _not_found(error) from None
+        except AiSettingsConflictError as error:
+            raise _conflict(error) from None
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     router.add_api_route(
