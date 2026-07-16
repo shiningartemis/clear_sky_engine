@@ -272,7 +272,7 @@ PROTECTED_PROVIDER_OPTION_KEYS = frozenset(
 
 ---
 
-## 任务 3：全局 AI 任务设置前端与 JSON 编辑器
+## 任务 3：全局 AI 任务设置前端与 JSON 编辑器（已完成，2026-07-16）
 
 **Files**
 
@@ -306,13 +306,21 @@ export function parseJsonObjectEditor(source: string): JsonObjectParseResult;
 
 **Steps**
 
-- [ ] 先写 API 转换、两个任务卡片、字段校验、格式化、语法行列、冲突字段及 loading/error/success 的 RTL/Vitest 测试，并保留任务 1 的 Model defaults 消失回归。
-- [ ] 运行 `npm --prefix frontend run test -- --run src/api/aiSettings.test.ts src/features/ai-settings/AiSettingsPage.test.tsx`，确认新行为失败。
-- [ ] 最小实现 JSON 编辑器和固定任务表单，不引入编辑器或表单依赖。
-- [ ] 运行聚焦测试、Biome、TypeScript、Vite build 和 `./scripts/check.ps1`。
-- [ ] 更新本文件并提交 `feat: add ai task configuration ui`。
+- [x] 先写 API 转换、两个任务卡片、字段校验、格式化、语法行列、冲突字段及 loading/error/success 的 RTL/Vitest 测试，并保留任务 1 的 Model defaults 消失回归。
+- [x] 运行 `npm --prefix frontend run test -- --run src/api/aiSettings.test.ts src/features/ai-settings/AiSettingsPage.test.tsx`，确认新行为失败。
+- [x] 最小实现 JSON 编辑器和固定任务表单，不引入编辑器或表单依赖。
+- [x] 运行聚焦测试、Biome、TypeScript、Vite build 和 `./scripts/check.ps1`。
+- [x] 更新本文件并提交 `feat: add ai task configuration ui`。
 
 **Expected:** 开发商只在一个全局页面配置两任务；任意 JSON 可编辑且格式问题可操作；世界创建页无任务参数。
+
+**验证记录（2026-07-16）**
+
+- RED：`npm --prefix frontend run test -- --run src/api/aiSettings.test.ts src/features/ai-settings/AiSettingsPage.test.tsx`，11 failed / 7 passed；失败点为缺少任务设置 API、JSON 解析器和两张固定任务卡片。
+- GREEN：同一聚焦命令，2 个测试文件、18 tests passed。
+- OpenAPI：`./scripts/generate-api.ps1` 成功，`frontend/src/api/generated.ts` 无漂移；沙箱内首次运行因 uv 用户缓存不可访问失败，获批在沙箱外原命令重跑通过。
+- 前端分项：`npm --prefix frontend run check` 通过（49 files）；`npm --prefix frontend run typecheck` 通过；`npm --prefix frontend run build` 通过（Vite 46 modules，保留既有 >1500 kB chunk 警告）。
+- 全量：`./scripts/check.ps1` 沙箱外通过；后端 216 passed、6 deselected，前端 15 个测试文件、138 tests passed，Ruff format/check、Pyright、Biome、TypeScript 与 Vite build 均通过。
 
 ---
 

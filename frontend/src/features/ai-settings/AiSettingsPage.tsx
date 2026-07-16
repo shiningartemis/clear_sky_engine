@@ -9,6 +9,10 @@ import {
   type ProviderCreate,
   type ProviderResponse,
   type ProviderUpdate,
+  parseJsonObjectEditor,
+  type TaskKey,
+  type TaskSettingResponse,
+  type TaskSettingUpdate,
 } from "../../api/aiSettings";
 import styles from "./AiSettingsPage.module.css";
 
@@ -19,7 +23,12 @@ interface AiSettingsPageProps {
 type LoadState =
   | { kind: "loading" }
   | { kind: "error" }
-  | { kind: "ready"; providers: ProviderResponse[]; models: ModelResponse[] };
+  | {
+      kind: "ready";
+      providers: ProviderResponse[];
+      models: ModelResponse[];
+      taskSettings: TaskSettingResponse[];
+    };
 
 type ConnectionState = "loading" | ConnectionTestResponse;
 
@@ -31,6 +40,421 @@ const emptyProvider: ProviderCreate = {
   enabled: true,
   extra: {},
 };
+
+const protectedProviderOptionKeys = new Set(
+  [
+    "model",
+    "messages",
+    "input",
+    "authorization",
+    "api_key",
+    "base_url",
+    "stream",
+    "temperature",
+    "max_tokens",
+    "max_output_tokens",
+    "thinking",
+    "reasoning_effort",
+    "tools",
+    "tool_choice",
+    "response_format",
+    "json_schema",
+  ].map(normalizeProviderOptionKey),
+);
+
+interface TaskFormState {
+  modelId: string;
+  temperature: string;
+  maxOutputTokens: string;
+  reasoningEffort: "" | "high" | "max";
+  timeoutSeconds: string;
+  extraPrompt: string;
+  structuredOutputMode: "auto" | "native" | "prompt";
+  providerOptionsSource: string;
+  memoryTargetChars: string;
+  memoryMaxChars: string;
+}
+
+function normalizeProviderOptionKey(key: string) {
+  return [...key.toLocaleLowerCase()]
+    .filter((character) => /[a-z0-9]/.test(character))
+    .join("");
+}
+
+function editorPosition(source: string, offset: number) {
+  const lines = source.slice(0, Math.max(0, offset)).split("\n");
+  return { line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1 };
+}
+
+function formFromSetting(setting: TaskSettingResponse): TaskFormState {
+  return {
+    modelId: setting.model_id?.toString() ?? "",
+    temperature: setting.temperature?.toString() ?? "",
+    maxOutputTokens: setting.max_output_tokens?.toString() ?? "",
+    reasoningEffort: setting.reasoning_effort ?? "",
+    timeoutSeconds: setting.timeout_seconds.toString(),
+    extraPrompt: setting.extra_prompt,
+    structuredOutputMode: setting.structured_output_mode,
+    providerOptionsSource: JSON.stringify(setting.provider_options, null, 2),
+    memoryTargetChars: setting.memory_target_chars?.toString() ?? "",
+    memoryMaxChars: setting.memory_max_chars?.toString() ?? "",
+  };
+}
+
+function optionalNumber(source: string) {
+  return source.trim() === "" ? null : Number(source);
+}
+
+function taskTitle(taskKey: TaskKey) {
+  return taskKey === "location_simulation" ? "地点推演" : "属性与记忆分析";
+}
+
+interface TaskSettingCardProps {
+  setting: TaskSettingResponse;
+  models: ModelResponse[];
+  api: AiSettingsApi;
+}
+
+function TaskSettingCard({ setting, models, api }: TaskSettingCardProps) {
+  const [form, setForm] = useState(() => formFromSetting(setting));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<
+    { kind: "error" | "success"; text: string } | undefined
+  >();
+  const title = taskTitle(setting.task_key);
+  const titleId = `task-setting-${setting.task_key}`;
+  const enabledModels = models.filter((item) => item.enabled);
+
+  function setField<Key extends keyof TaskFormState>(
+    field: Key,
+    value: TaskFormState[Key],
+  ) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setMessage(undefined);
+  }
+
+  function validateProviderOptions() {
+    const parsed = parseJsonObjectEditor(form.providerOptionsSource);
+    if (parsed.error || !parsed.value) {
+      const issue = parsed.error ?? {
+        message: "Provider 参数必须是 JSON 对象。",
+        line: 1,
+        column: 1,
+      };
+      setMessage({
+        kind: "error",
+        text: `第 ${issue.line} 行，第 ${issue.column} 列：${issue.message}`,
+      });
+      return null;
+    }
+    const conflict = Object.keys(parsed.value).find((key) =>
+      protectedProviderOptionKeys.has(normalizeProviderOptionKey(key)),
+    );
+    if (conflict) {
+      const keyOffset = form.providerOptionsSource.indexOf(
+        JSON.stringify(conflict),
+      );
+      const position = editorPosition(
+        form.providerOptionsSource,
+        keyOffset < 0 ? 0 : keyOffset,
+      );
+      setMessage({
+        kind: "error",
+        text: `第 ${position.line} 行，第 ${position.column} 列：字段“${conflict}”与程序保留字段冲突。`,
+      });
+      return null;
+    }
+    return parsed.value;
+  }
+
+  function buildPayload(): TaskSettingUpdate | null {
+    const providerOptions = validateProviderOptions();
+    if (!providerOptions) return null;
+
+    const modelId = optionalNumber(form.modelId);
+    const temperature = optionalNumber(form.temperature);
+    const maxOutputTokens = optionalNumber(form.maxOutputTokens);
+    const timeoutSeconds = Number(form.timeoutSeconds);
+    const memoryTargetChars = optionalNumber(form.memoryTargetChars);
+    const memoryMaxChars = optionalNumber(form.memoryMaxChars);
+    if (
+      modelId === null ||
+      !Number.isInteger(modelId) ||
+      !enabledModels.some((item) => item.id === modelId)
+    ) {
+      setMessage({ kind: "error", text: "请选择一个已启用的任务模型。" });
+      return null;
+    }
+    if (
+      temperature !== null &&
+      (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)
+    ) {
+      setMessage({ kind: "error", text: "温度必须在 0 到 2 之间。" });
+      return null;
+    }
+    if (
+      maxOutputTokens !== null &&
+      (!Number.isInteger(maxOutputTokens) || maxOutputTokens <= 0)
+    ) {
+      setMessage({ kind: "error", text: "最大输出 Tokens 必须是正整数。" });
+      return null;
+    }
+    if (!Number.isInteger(timeoutSeconds) || timeoutSeconds <= 0) {
+      setMessage({ kind: "error", text: "超时秒数必须是正整数。" });
+      return null;
+    }
+    if (setting.task_key === "attribute_memory_analysis") {
+      if (
+        memoryTargetChars === null ||
+        !Number.isInteger(memoryTargetChars) ||
+        memoryTargetChars <= 0 ||
+        memoryMaxChars === null ||
+        !Number.isInteger(memoryMaxChars) ||
+        memoryMaxChars <= 0
+      ) {
+        setMessage({ kind: "error", text: "记忆字数必须是正整数。" });
+        return null;
+      }
+      if (memoryTargetChars > memoryMaxChars) {
+        setMessage({
+          kind: "error",
+          text: "记忆目标字数不得大于硬上限。",
+        });
+        return null;
+      }
+    }
+    return {
+      model_id: modelId,
+      temperature,
+      max_output_tokens: maxOutputTokens,
+      reasoning_effort: form.reasoningEffort || null,
+      timeout_seconds: timeoutSeconds,
+      extra_prompt: form.extraPrompt,
+      structured_output_mode: form.structuredOutputMode,
+      provider_options: providerOptions,
+      memory_target_chars:
+        setting.task_key === "attribute_memory_analysis"
+          ? memoryTargetChars
+          : null,
+      memory_max_chars:
+        setting.task_key === "attribute_memory_analysis"
+          ? memoryMaxChars
+          : null,
+    };
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(undefined);
+    const payload = buildPayload();
+    if (!payload) return;
+    setSaving(true);
+    try {
+      await api.updateTaskSetting(setting.task_key, payload);
+      setMessage({ kind: "success", text: "下一次新轮次生效" });
+    } catch {
+      // 请求失败时不重置表单，开发商可以直接修正或重试当前完整输入。
+      setMessage({
+        kind: "error",
+        text: "保存任务设置失败，请检查配置后重试。",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function formatProviderOptions() {
+    const parsed = parseJsonObjectEditor(form.providerOptionsSource);
+    if (parsed.error || !parsed.value) {
+      const issue = parsed.error ?? {
+        message: "Provider 参数必须是 JSON 对象。",
+        line: 1,
+        column: 1,
+      };
+      setMessage({
+        kind: "error",
+        text: `第 ${issue.line} 行，第 ${issue.column} 列：${issue.message}`,
+      });
+      return;
+    }
+    setField("providerOptionsSource", JSON.stringify(parsed.value, null, 2));
+  }
+
+  return (
+    <section className={styles.taskCard} aria-labelledby={titleId}>
+      <div className={styles.taskHeader}>
+        <div>
+          <span className={styles.typeBadge}>固定全局任务</span>
+          <h3 id={titleId}>{title}</h3>
+        </div>
+        <span className={styles.version}>版本 {setting.version}</span>
+      </div>
+      <form onSubmit={save}>
+        <fieldset className={styles.taskFields} disabled={saving}>
+          <label>
+            任务模型
+            <select
+              required
+              value={form.modelId}
+              onChange={(event) => setField("modelId", event.target.value)}
+            >
+              <option value="">请选择模型</option>
+              {enabledModels.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.display_name} · {item.remote_model}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className={styles.taskGrid}>
+            <label>
+              温度（0–2，可留空）
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.1"
+                value={form.temperature}
+                onChange={(event) =>
+                  setField("temperature", event.target.value)
+                }
+              />
+            </label>
+            <label>
+              最大输出 Tokens（可留空）
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={form.maxOutputTokens}
+                onChange={(event) =>
+                  setField("maxOutputTokens", event.target.value)
+                }
+              />
+            </label>
+            <label>
+              思考强度
+              <select
+                value={form.reasoningEffort}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === "" || value === "high" || value === "max") {
+                    setField("reasoningEffort", value);
+                  }
+                }}
+              >
+                <option value="">不指定</option>
+                <option value="high">high</option>
+                <option value="max">max</option>
+              </select>
+            </label>
+            <label>
+              超时秒数
+              <input
+                required
+                type="number"
+                min="1"
+                step="1"
+                value={form.timeoutSeconds}
+                onChange={(event) =>
+                  setField("timeoutSeconds", event.target.value)
+                }
+              />
+            </label>
+            <label>
+              结构化输出策略
+              <select
+                value={form.structuredOutputMode}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (
+                    value === "auto" ||
+                    value === "native" ||
+                    value === "prompt"
+                  ) {
+                    setField("structuredOutputMode", value);
+                  }
+                }}
+              >
+                <option value="auto">自动</option>
+                <option value="native">原生 JSON</option>
+                <option value="prompt">提示词 JSON</option>
+              </select>
+            </label>
+          </div>
+          {setting.task_key === "attribute_memory_analysis" && (
+            <div className={styles.taskGrid}>
+              <label>
+                记忆目标字数
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.memoryTargetChars}
+                  onChange={(event) =>
+                    setField("memoryTargetChars", event.target.value)
+                  }
+                />
+              </label>
+              <label>
+                记忆硬上限
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.memoryMaxChars}
+                  onChange={(event) =>
+                    setField("memoryMaxChars", event.target.value)
+                  }
+                />
+              </label>
+            </div>
+          )}
+          <label>
+            额外提示词
+            <textarea
+              rows={4}
+              value={form.extraPrompt}
+              onChange={(event) => setField("extraPrompt", event.target.value)}
+            />
+          </label>
+          <label>
+            Provider 参数 JSON
+            <textarea
+              className={styles.jsonEditor}
+              rows={8}
+              spellCheck={false}
+              value={form.providerOptionsSource}
+              onChange={(event) =>
+                setField("providerOptionsSource", event.target.value)
+              }
+            />
+          </label>
+          <div className={styles.taskActions}>
+            <button type="button" onClick={formatProviderOptions}>
+              格式化 JSON
+            </button>
+            <button type="submit">
+              {saving ? "正在保存…" : "保存任务设置"}
+            </button>
+          </div>
+        </fieldset>
+      </form>
+      {message && (
+        <p
+          className={
+            message.kind === "error" ? styles.taskError : styles.taskSuccess
+          }
+          role={message.kind === "error" ? "alert" : "status"}
+        >
+          {message.text}
+        </p>
+      )}
+    </section>
+  );
+}
 
 export function AiSettingsPage({ api = aiSettingsApi }: AiSettingsPageProps) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -51,11 +475,12 @@ export function AiSettingsPage({ api = aiSettingsApi }: AiSettingsPageProps) {
     async (signal?: AbortSignal) => {
       setState({ kind: "loading" });
       try {
-        const [providers, models] = await Promise.all([
+        const [providers, models, taskSettings] = await Promise.all([
           api.listProviders(signal),
           api.listModels(signal),
+          api.listTaskSettings(signal),
         ]);
-        setState({ kind: "ready", providers, models });
+        setState({ kind: "ready", providers, models, taskSettings });
       } catch {
         if (!signal?.aborted) {
           setState({ kind: "error" });
@@ -257,6 +682,29 @@ export function AiSettingsPage({ api = aiSettingsApi }: AiSettingsPageProps) {
           </div>
 
           {actionError && <p className={styles.errorBanner}>{actionError}</p>}
+
+          <section
+            className={styles.taskSection}
+            aria-labelledby="task-settings-title"
+          >
+            <div className={styles.sectionHeading}>
+              <div>
+                <p className={styles.eyebrow}>GLOBAL WORKFLOW TASKS</p>
+                <h2 id="task-settings-title">AI 任务设置</h2>
+              </div>
+              <p>保存后从下一次新轮次开始生效。</p>
+            </div>
+            <div className={styles.taskList}>
+              {state.taskSettings.map((setting) => (
+                <TaskSettingCard
+                  key={setting.task_key}
+                  setting={setting}
+                  models={state.models}
+                  api={api}
+                />
+              ))}
+            </div>
+          </section>
 
           {providerForm && (
             <form className={styles.formCard} onSubmit={saveProvider}>

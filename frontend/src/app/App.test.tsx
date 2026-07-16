@@ -174,6 +174,7 @@ describe("App", () => {
     const settingsApi: AiSettingsApi = {
       listProviders: vi.fn().mockResolvedValue([]),
       listModels: vi.fn().mockResolvedValue([]),
+      listTaskSettings: vi.fn().mockResolvedValue([]),
       createProvider: vi.fn(),
       updateProvider: vi.fn(),
       deleteProvider: vi.fn(),
@@ -181,6 +182,7 @@ describe("App", () => {
       updateModel: vi.fn(),
       deleteModel: vi.fn(),
       testConnection: vi.fn(),
+      updateTaskSetting: vi.fn(),
     };
 
     renderApp(
