@@ -332,6 +332,14 @@ export function parseJsonObjectEditor(source: string): JsonObjectParseResult;
 - 分项：Biome 49 files、`tsc --noEmit`、Vite build 均通过；构建保留既有 >1500 kB chunk 警告。
 - 全量：`./scripts/check.ps1` 沙箱外通过；后端 216 passed、6 deselected，前端 15 个测试文件、140 tests passed，Ruff format/check、Pyright、Biome、TypeScript 与 Vite build 均通过。
 
+**第二次独立审查修复验证（2026-07-16）**
+
+- 修复数组边界：根对象键扫描同时跟踪对象与数组深度；仅对象深度为 1 且数组深度为 0 时识别成员键和根成员分隔逗号。
+- RED：聚焦命令为 1 failed / 19 passed，证明 `{"options":["other","max_tokens"],"max_tokens":100}` 把数组元素误定位为第 2 行第 24 列，而非真实根键第 3 行第 3 列。
+- GREEN：`npm --prefix frontend run test -- --run src/api/aiSettings.test.ts src/features/ai-settings/AiSettingsPage.test.tsx` 通过，2 个测试文件、20 tests passed。
+- 分项：Biome 49 files、`tsc --noEmit`、Vite build 均通过；构建保留既有 >1500 kB chunk 警告。
+- 全量：`./scripts/check.ps1` 沙箱外通过；后端 216 passed、6 deselected，前端 15 个测试文件、140 tests passed，Ruff format/check、Pyright、Biome、TypeScript 与 Vite build 均通过。
+
 ---
 
 ## 任务 4：NPC 二次缓存、主角预留位与显式 offline

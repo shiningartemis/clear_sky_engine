@@ -196,6 +196,17 @@ describe("AiSettingsPage", () => {
     expect(within(card).getByRole("alert")).toHaveTextContent(
       /第 3 行，第 3 列.*字段“max_tokens”与程序保留字段冲突/,
     );
+
+    fireEvent.change(editor, {
+      target: {
+        value:
+          '{\n  "options": ["other", "max_tokens"],\n  "max_tokens": 100\n}',
+      },
+    });
+    await user.click(save);
+    expect(within(card).getByRole("alert")).toHaveTextContent(
+      /第 3 行，第 3 列.*字段“max_tokens”与程序保留字段冲突/,
+    );
   });
 
   it("validates memory target against its hard maximum", async () => {

@@ -88,6 +88,7 @@ function editorPosition(source: string, offset: number) {
 
 function findRootObjectKeyOffset(source: string, targetKey: string) {
   let depth = 0;
+  let arrayDepth = 0;
   let inString = false;
   let escaped = false;
   let expectingRootKey = false;
@@ -115,13 +116,19 @@ function findRootObjectKeyOffset(source: string, targetKey: string) {
     }
     if (character === '"') {
       inString = true;
-      if (depth === 1 && expectingRootKey) rootKeyStart = index;
+      if (depth === 1 && arrayDepth === 0 && expectingRootKey) {
+        rootKeyStart = index;
+      }
     } else if (character === "{") {
       depth += 1;
       if (depth === 1) expectingRootKey = true;
     } else if (character === "}") {
       depth -= 1;
-    } else if (character === "," && depth === 1) {
+    } else if (character === "[") {
+      arrayDepth += 1;
+    } else if (character === "]") {
+      arrayDepth -= 1;
+    } else if (character === "," && depth === 1 && arrayDepth === 0) {
       expectingRootKey = true;
     }
   }
