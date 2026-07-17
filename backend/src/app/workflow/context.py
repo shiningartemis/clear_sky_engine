@@ -3,7 +3,7 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import TypeGuard
+from typing import Literal, TypeGuard
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -86,10 +86,39 @@ class TurnContextSnapshot:
 
 
 @dataclass(frozen=True)
+class FrozenInteractionGroup:
+    group_id: str
+    role_ids: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class FrozenEventKnowledge:
+    role_id: int
+    level: Literal["participant", "observer", "told", "public"]
+    perspective_notes: str
+
+
+@dataclass(frozen=True)
+class FrozenObjectiveEvent:
+    event_key: str
+    group_id: str
+    event_type: str
+    fact: Mapping[str, FrozenJsonValue]
+    knowledge: tuple[FrozenEventKnowledge, ...]
+
+
+@dataclass(frozen=True)
+class FrozenRoleChronicle:
+    role_id: int
+    content: str
+    known_event_keys: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class RoleAttributeMemoryContext:
     role_id: int
-    chronicle: RoleChronicleOutput
-    known_events: tuple[ObjectiveEventOutput, ...]
+    chronicle: FrozenRoleChronicle
+    known_events: tuple[FrozenObjectiveEvent, ...]
     effective_attributes: Mapping[str, AttributeScalar]
     attribute_update_rules: Mapping[str, str]
     attribute_version: int
@@ -98,8 +127,7 @@ class RoleAttributeMemoryContext:
 @dataclass(frozen=True)
 class AttributeMemoryContext:
     location_id: str
-    groups: tuple[InteractionGroupOutput, ...]
-    events: tuple[ObjectiveEventOutput, ...]
+    groups: tuple[FrozenInteractionGroup, ...]
     roles: tuple[RoleAttributeMemoryContext, ...]
 
 
@@ -142,6 +170,41 @@ def _recent_turn_context(record: RecentRoleTurnRecord) -> RecentTurnContext:
         time_slot=record.time_slot,
         own_chronicle=record.own_chronicle,
         known_events=tuple(_event_context(event) for event in record.known_events),
+    )
+
+
+def _freeze_group(group: InteractionGroupOutput) -> FrozenInteractionGroup:
+    return FrozenInteractionGroup(group_id=group.group_id, role_ids=tuple(group.role_ids))
+
+
+def _freeze_chronicle(chronicle: RoleChronicleOutput) -> FrozenRoleChronicle:
+    return FrozenRoleChronicle(
+        role_id=chronicle.role_id,
+        content=chronicle.content,
+        known_event_keys=tuple(chronicle.known_event_keys),
+    )
+
+
+def _freeze_event_for_role(
+    event: ObjectiveEventOutput,
+    role_id: int,
+) -> FrozenObjectiveEvent:
+    """事件片段只保留目标角色自己的知识行，避免泄露他人感知说明。"""
+
+    return FrozenObjectiveEvent(
+        event_key=event.event_key,
+        group_id=event.group_id,
+        event_type=event.event_type,
+        fact=freeze_json_object(event.fact),
+        knowledge=tuple(
+            FrozenEventKnowledge(
+                role_id=item.role_id,
+                level=item.level,
+                perspective_notes=item.perspective_notes,
+            )
+            for item in event.knowledge
+            if item.role_id == role_id
+        ),
     )
 
 
@@ -290,14 +353,13 @@ class ContextBuilder:
         chronicles = {item.role_id: item for item in simulation.chronicles}
         return AttributeMemoryContext(
             location_id=location.location_id,
-            groups=tuple(simulation.groups),
-            events=tuple(simulation.events),
+            groups=tuple(_freeze_group(group) for group in simulation.groups),
             roles=tuple(
                 RoleAttributeMemoryContext(
                     role_id=role.role_id,
-                    chronicle=chronicles[role.role_id],
+                    chronicle=_freeze_chronicle(chronicles[role.role_id]),
                     known_events=tuple(
-                        event
+                        _freeze_event_for_role(event, role.role_id)
                         for event in simulation.events
                         if any(item.role_id == role.role_id for item in event.knowledge)
                     ),

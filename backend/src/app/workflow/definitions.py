@@ -36,8 +36,8 @@ ATTRIBUTE_MEMORY_ANALYSIS = TaskDefinition(
     task_key=TaskKey.ATTRIBUTE_MEMORY_ANALYSIS,
     output_model=AttributeMemoryAnalysisOutput,
     system_prompt=(
-        "你只分析当前冻结地点本轮已经校验的纪事和事件。每名角色仅依据自己的纪事、"
-        "可知事件、当前最终属性及对应更新规则提交结构化属性更新意图和一段记忆摘要。"
+        "你只分析当前冻结地点内按角色隔离的输入片段。每个角色输出只能使用该角色自身片段"
+        "中的纪事、可知事件、当前最终属性及对应更新规则, 禁止跨角色片段引用。"
         "不得直接写状态, 不得引用其他地点、未知事件或其他角色不可知的内容。"
     ),
 )

@@ -13,6 +13,7 @@ from app.db.session import create_session_factory, create_sqlite_engine
 from app.game.locations import OFFLINE, RolePresence
 from app.story.models import Turn, TurnEvent, TurnEventParticipant, TurnStory
 from app.workflow.context import ContextBuilder, ContextBuildError
+from app.workflow.definitions import ATTRIBUTE_MEMORY_ANALYSIS
 from app.workflow.schemas import (
     EventKnowledge,
     InteractionGroupOutput,
@@ -276,7 +277,63 @@ def test_offline_turn_does_not_count_but_solo_story_does(
     assert recent_ids == [3, 4, 5, 6, 7]
 
 
-def test_attribute_memory_context_contains_only_current_location_structure(
+def _attribute_simulation() -> LocationSimulationOutput:
+    return LocationSimulationOutput(
+        location_id="the_home",
+        groups=[InteractionGroupOutput(group_id="pair", role_ids=[1, 2])],
+        events=[
+            ObjectiveEventOutput(
+                event_key="protagonist_private",
+                group_id="pair",
+                event_type="reflection",
+                fact={
+                    "summary": "只有主角知道的想法",
+                    "nested": {"details": ["原始细节"]},
+                },
+                knowledge=[EventKnowledge(role_id=1, level="participant")],
+            ),
+            ObjectiveEventOutput(
+                event_key="npc_private",
+                group_id="pair",
+                event_type="reflection",
+                fact={"summary": "只有 NPC 知道的秘密"},
+                knowledge=[EventKnowledge(role_id=2, level="participant")],
+            ),
+            ObjectiveEventOutput(
+                event_key="shared_notice",
+                group_id="pair",
+                event_type="announcement",
+                fact={"summary": "两人都听见了通知"},
+                knowledge=[
+                    EventKnowledge(
+                        role_id=1,
+                        level="observer",
+                        perspective_notes="主角只听见了前半句",
+                    ),
+                    EventKnowledge(
+                        role_id=2,
+                        level="observer",
+                        perspective_notes="NPC 私下听见了完整内容",
+                    ),
+                ],
+            ),
+        ],
+        chronicles=[
+            RoleChronicleOutput(
+                role_id=1,
+                content="我想起了自己的计划。",
+                known_event_keys=["protagonist_private", "shared_notice"],
+            ),
+            RoleChronicleOutput(
+                role_id=2,
+                content="我保守着不告诉主角的秘密。",
+                known_event_keys=["npc_private", "shared_notice"],
+            ),
+        ],
+    )
+
+
+def test_attribute_memory_context_is_partitioned_into_isolated_role_fragments(
     session_factory: sessionmaker[Session],
 ) -> None:
     snapshot = ContextBuilder(session_factory).build_turn_snapshot(
@@ -288,33 +345,66 @@ def test_attribute_memory_context_contains_only_current_location_structure(
         presences=_presences(),
     )
     home = next(item for item in snapshot.locations if item.location_id == "the_home")
-    simulation = LocationSimulationOutput(
-        location_id="the_home",
-        groups=[InteractionGroupOutput(group_id="pair", role_ids=[1, 2])],
-        events=[
-            ObjectiveEventOutput(
-                event_key="talk",
-                group_id="pair",
-                event_type="conversation",
-                fact={"summary": "两人交谈"},
-                knowledge=[
-                    EventKnowledge(role_id=1, level="participant"),
-                    EventKnowledge(role_id=2, level="participant"),
-                ],
-            )
-        ],
-        chronicles=[
-            RoleChronicleOutput(role_id=1, content="我与对方交谈。", known_event_keys=["talk"]),
-            RoleChronicleOutput(role_id=2, content="我回应了对方。", known_event_keys=["talk"]),
-        ],
-    )
+    simulation = _attribute_simulation()
 
     context = ContextBuilder.build_attribute_memory_context(home, simulation)
 
     assert context.location_id == "the_home"
     assert [item.role_id for item in context.roles] == [1, 2]
-    assert context.roles[0].chronicle.content == "我与对方交谈。"
-    assert context.roles[0].effective_attributes == {"level": 12}
-    assert context.events == tuple(simulation.events)
+    protagonist_fragment = context.roles[0]
+    assert protagonist_fragment.chronicle.content == "我想起了自己的计划。"
+    assert [item.event_key for item in protagonist_fragment.known_events] == [
+        "protagonist_private",
+        "shared_notice",
+    ]
+    assert [item.role_id for item in protagonist_fragment.known_events[1].knowledge] == [1]
+    assert protagonist_fragment.effective_attributes == {"level": 12}
+    assert not hasattr(context, "events")
+    assert "不告诉主角的秘密" not in repr(protagonist_fragment)
+    assert "只有 NPC 知道的秘密" not in repr(protagonist_fragment)
+    assert "NPC 私下听见了完整内容" not in repr(protagonist_fragment)
     assert "长期记忆" not in repr(context)
     assert "异地图" not in repr(context)
+
+
+def test_attribute_memory_context_deeply_freezes_location_output(
+    session_factory: sessionmaker[Session],
+) -> None:
+    snapshot = ContextBuilder(session_factory).build_turn_snapshot(
+        world_id=1,
+        branch_id=1,
+        day=8,
+        time_slot="morning",
+        player_intent="继续行动",
+        presences=_presences(),
+    )
+    home = next(item for item in snapshot.locations if item.location_id == "the_home")
+    simulation = _attribute_simulation()
+
+    context = ContextBuilder.build_attribute_memory_context(home, simulation)
+    simulation.groups[0].role_ids.append(99)
+    simulation.events[0].knowledge.append(EventKnowledge(role_id=2, level="told"))
+    simulation.events[0].fact["summary"] = "被修改"
+    nested = simulation.events[0].fact["nested"]
+    assert isinstance(nested, dict)
+    details = nested["details"]
+    assert isinstance(details, list)
+    details.append("被修改的细节")
+    simulation.chronicles[0].known_event_keys.append("npc_private")
+
+    assert context.groups[0].role_ids == (1, 2)
+    assert context.roles[0].known_events[0].knowledge[0].role_id == 1
+    assert len(context.roles[0].known_events[0].knowledge) == 1
+    assert context.roles[0].known_events[0].fact["summary"] == "只有主角知道的想法"
+    frozen_nested = context.roles[0].known_events[0].fact["nested"]
+    assert repr(frozen_nested) == "mappingproxy({'details': ('原始细节',)})"
+    assert context.roles[0].chronicle.known_event_keys == (
+        "protagonist_private",
+        "shared_notice",
+    )
+    assert context.roles[0].chronicle is not simulation.chronicles[0]
+
+
+def test_attribute_memory_definition_forbids_cross_fragment_references() -> None:
+    assert "每个角色输出只能使用该角色自身片段" in ATTRIBUTE_MEMORY_ANALYSIS.system_prompt
+    assert "禁止跨角色片段引用" in ATTRIBUTE_MEMORY_ANALYSIS.system_prompt
