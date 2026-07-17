@@ -90,7 +90,7 @@ class AttributeUpdateIntent(BaseModel):
     operation: AttributeOperation
     value: AttributeScalar
     reason: Annotated[str, Field(min_length=1, max_length=1000)]
-    source_event_id: int = Field(gt=0)
+    source_event_id: Annotated[str, Field(min_length=1, max_length=80)] | None
     expected_version: int = Field(ge=1)
 
 

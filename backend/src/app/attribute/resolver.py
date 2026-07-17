@@ -171,7 +171,7 @@ def apply_attribute_updates(
     *,
     role_id: int,
     current_version: int,
-    valid_event_ids: Set[int],
+    valid_event_keys: Set[str],
 ) -> dict[str, AttributeScalar]:
     """在内存副本原子应用意图，失败时不改变调用方的旧变化映射。"""
     next_changes = dict(current_changes)
@@ -181,7 +181,7 @@ def apply_attribute_updates(
             raise AttributeUpdateError("属性更新角色不匹配")
         if intent.expected_version != current_version:
             raise AttributeUpdateError("角色属性版本已变化")
-        if intent.source_event_id not in valid_event_ids:
+        if intent.source_event_id is not None and intent.source_event_id not in valid_event_keys:
             raise AttributeUpdateError("属性更新依据不属于当前轮次")
         definition = by_key.get(intent.attribute_key)
         if definition is None or intent.operation not in definition.allowed_operations:

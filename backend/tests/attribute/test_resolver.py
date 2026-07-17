@@ -55,7 +55,7 @@ def update_intent(
     attribute_key: str = "level",
     operation: AttributeOperation = "replace",
     value: AttributeScalar = 15,
-    source_event_id: int = 101,
+    source_event_id: str | None = "event-101",
     expected_version: int = 3,
 ) -> AttributeUpdateIntent:
     return AttributeUpdateIntent(
@@ -137,7 +137,7 @@ def test_invalid_definitions_are_rejected(
         (
             [definition("level", "integer", 10)],
             {},
-            update_intent(source_event_id=202),
+            update_intent(source_event_id="event-202"),
             None,
             "属性更新依据不属于当前轮次",
         ),
@@ -165,7 +165,7 @@ def test_updates_are_checked_and_preserve_stale_values(
                 [intent],
                 role_id=7,
                 current_version=3,
-                valid_event_ids={101},
+                valid_event_keys={"event-101"},
             )
         return
 
@@ -176,7 +176,7 @@ def test_updates_are_checked_and_preserve_stale_values(
             [intent],
             role_id=7,
             current_version=3,
-            valid_event_ids={101},
+            valid_event_keys={"event-101"},
         )
         == expected
     )
@@ -247,7 +247,7 @@ def test_attribute_definition_rejects_coercible_boundary_inputs(
     "overrides",
     [
         {"role_id": "7"},
-        {"source_event_id": "101"},
+        {"source_event_id": 101},
         {"expected_version": "3"},
     ],
 )
@@ -260,7 +260,7 @@ def test_attribute_update_intent_rejects_coercible_identifiers(
         "operation": "replace",
         "value": 15,
         "reason": "本轮事件导致属性变化",
-        "source_event_id": 101,
+        "source_event_id": "event-101",
         "expected_version": 3,
     }
     values.update(overrides)
@@ -336,7 +336,30 @@ def test_new_update_outside_numeric_constraints_is_rejected() -> None:
             [update_intent(value=13)],
             role_id=7,
             current_version=3,
-            valid_event_ids={101},
+            valid_event_keys={"event-101"},
+        )
+
+
+def test_update_without_objective_event_is_allowed() -> None:
+    assert apply_attribute_updates(
+        [definition("level", "integer", 10)],
+        {},
+        [update_intent(source_event_id=None, value=11)],
+        role_id=7,
+        current_version=3,
+        valid_event_keys=set(),
+    ) == {"level": 1}
+
+
+def test_unknown_nonempty_event_key_is_rejected() -> None:
+    with pytest.raises(AttributeUpdateError, match="属性更新依据不属于当前轮次"):
+        apply_attribute_updates(
+            [definition("level", "integer", 10)],
+            {},
+            [update_intent(source_event_id="unknown")],
+            role_id=7,
+            current_version=3,
+            valid_event_keys={"event-101"},
         )
 
 

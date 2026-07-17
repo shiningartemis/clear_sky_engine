@@ -1,0 +1,117 @@
+"""成功轮次及角色隔离历史的同步 SQLAlchemy 查询。"""
+
+from dataclasses import dataclass
+from typing import Literal
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.ai.types import JsonValue
+from app.story.models import Turn, TurnEvent, TurnEventParticipant, TurnStory
+
+KnowledgeLevel = Literal["participant", "observer", "told", "public"]
+
+
+class StoryDataError(ValueError):
+    """持久化故事数据违反已发布约束，不能进入后续角色上下文。"""
+
+
+@dataclass(frozen=True)
+class KnownEventRecord:
+    event_id: int
+    event_type: str
+    fact: dict[str, JsonValue]
+    knowledge_level: KnowledgeLevel
+    perspective_notes: str
+
+
+@dataclass(frozen=True)
+class RecentRoleTurnRecord:
+    turn_id: int
+    day: int
+    time_slot: str
+    own_chronicle: str
+    known_events: tuple[KnownEventRecord, ...]
+
+
+def _knowledge_level(value: str) -> KnowledgeLevel:
+    match value:
+        case "participant":
+            return "participant"
+        case "observer":
+            return "observer"
+        case "told":
+            return "told"
+        case "public":
+            return "public"
+        case _:
+            raise StoryDataError("事件知识级别无效")
+
+
+class StoryStore:
+    """历史查询从 SQL 层只选择目标角色纪事，避免调用方误拿全局纪事。"""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def list_recent_role_turns(
+        self,
+        *,
+        world_id: int,
+        branch_id: int,
+        role_id: int,
+        limit: int = 5,
+    ) -> tuple[RecentRoleTurnRecord, ...]:
+        """以 turn_story 是否存在定义有效轮次，offline 自然不会占用名额。"""
+
+        if limit < 1:
+            return ()
+        statement = (
+            select(Turn, TurnStory)
+            .join(TurnStory, TurnStory.turn_id == Turn.id)
+            .where(
+                Turn.world_id == world_id,
+                Turn.branch_id == branch_id,
+                TurnStory.role_id == role_id,
+            )
+            .order_by(Turn.id.desc())
+            .limit(limit)
+        )
+        descending_rows = list(self._session.execute(statement).tuples())
+        turn_ids = [turn.id for turn, _story in descending_rows]
+        events_by_turn: dict[int, list[KnownEventRecord]] = {turn_id: [] for turn_id in turn_ids}
+        if turn_ids:
+            event_statement = (
+                select(TurnEvent, TurnEventParticipant)
+                .join(
+                    TurnEventParticipant,
+                    TurnEventParticipant.event_id == TurnEvent.id,
+                )
+                .where(
+                    TurnEvent.turn_id.in_(turn_ids),
+                    TurnEventParticipant.role_id == role_id,
+                )
+                .order_by(TurnEvent.turn_id, TurnEvent.id)
+            )
+            for event, participant in self._session.execute(event_statement).tuples():
+                events_by_turn[event.turn_id].append(
+                    KnownEventRecord(
+                        event_id=event.id,
+                        event_type=event.event_type,
+                        fact=event.fact_json,
+                        knowledge_level=_knowledge_level(participant.knowledge_level),
+                        perspective_notes=participant.perspective_notes,
+                    )
+                )
+
+        # Prompt 采用自然时间顺序，最近一轮稳定放在最后。
+        return tuple(
+            RecentRoleTurnRecord(
+                turn_id=turn.id,
+                day=turn.day,
+                time_slot=turn.time_slot,
+                own_chronicle=story.content,
+                known_events=tuple(events_by_turn[turn.id]),
+            )
+            for turn, story in reversed(descending_rows)
+        )
