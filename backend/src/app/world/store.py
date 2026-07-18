@@ -9,6 +9,7 @@ from app.world.models import (
     CharacterLocationRule,
     World,
     WorldBranch,
+    WorldRoleMemory,
     WorldRoleState,
 )
 
@@ -28,6 +29,14 @@ class WorldStore:
     def get_branch(self, branch_id: int) -> WorldBranch | None:
         return self._session.get(WorldBranch, branch_id)
 
+    def get_world_branch(self, world_id: int, branch_id: int) -> WorldBranch | None:
+        return self._session.scalar(
+            select(WorldBranch).where(
+                WorldBranch.world_id == world_id,
+                WorldBranch.id == branch_id,
+            )
+        )
+
     def get_role(self, role_id: int) -> Role | None:
         return self._session.get(Role, role_id)
 
@@ -46,6 +55,26 @@ class WorldStore:
                 WorldRoleState.role_id == role_id,
             )
         )
+
+    def get_role_memory(self, world_id: int, role_id: int) -> WorldRoleMemory | None:
+        return self._session.scalar(
+            select(WorldRoleMemory).where(
+                WorldRoleMemory.world_id == world_id,
+                WorldRoleMemory.role_id == role_id,
+            )
+        )
+
+    def save_role_state(self, state: WorldRoleState) -> None:
+        """显式刷新单角色状态，使结算故障仍留在同一可回滚事务内。"""
+
+        self._session.add(state)
+        self._session.flush()
+
+    def save_role_memory(self, memory: WorldRoleMemory) -> None:
+        """记忆与属性共享事务，任何后续失败都不得留下摘要片段。"""
+
+        self._session.add(memory)
+        self._session.flush()
 
     def count_npcs(self, world_id: int) -> int:
         count = self._session.scalar(

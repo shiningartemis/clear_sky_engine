@@ -14,6 +14,7 @@ from app.attribute import (
     decode_attribute_definitions,
     resolve_effective_attributes,
 )
+from app.character.models import Role
 from app.game.locations import LOCATION_IDS, OFFLINE, RolePresence
 from app.story.store import KnownEventRecord, RecentRoleTurnRecord, StoryStore
 from app.workflow.schemas import (
@@ -24,7 +25,8 @@ from app.workflow.schemas import (
     validate_location_simulation_output,
 )
 from app.workflow.settings import FrozenJsonValue, freeze_json_object
-from app.world.models import WorldRoleMemory
+from app.world.models import WorldRoleMemory, WorldRoleState
+from app.world.service import resolve_world_presences
 from app.world.store import WorldStore
 
 
@@ -81,6 +83,8 @@ class TurnContextSnapshot:
     time_slot: str
     world_state_version: int
     protagonist_role_id: int
+    world_role_versions: Mapping[int, int]
+    role_definition_versions: Mapping[int, int]
     turn_positions: Mapping[int, str]
     locations: tuple[LocationSimulationContext, ...]
 
@@ -133,8 +137,6 @@ class AttributeMemoryContext:
 
 def _definition_maps(role: object) -> AttributeDefinitionMaps:
     # Role 的映射字段由 ORM 精确标注；单独函数保持解码入口与世界服务一致。
-    from app.character.models import Role
-
     if not isinstance(role, Role):
         raise ContextBuildError("角色主记录无效")
     return AttributeDefinitionMaps(
@@ -227,7 +229,8 @@ class ContextBuilder:
         role_ids = [presence.role_id for presence in presences]
         if len(role_ids) != len(set(role_ids)):
             raise ContextBuildError("冻结位置包含重复角色")
-        players = [presence for presence in presences if presence.kind == "player"]
+        enabled_presences = [presence for presence in presences if presence.enabled]
+        players = [presence for presence in enabled_presences if presence.kind == "player"]
         if len(players) != 1:
             raise ContextBuildError("冻结位置必须恰有一名主角")
         player = players[0]
@@ -238,13 +241,9 @@ class ContextBuilder:
                 raise ContextBuildError("角色冻结地点无效")
 
         positions = MappingProxyType(
-            {presence.role_id: presence.location_id for presence in presences}
+            {presence.role_id: presence.location_id for presence in enabled_presences}
         )
-        located = [
-            presence
-            for presence in presences
-            if presence.enabled and presence.location_id != OFFLINE
-        ]
+        located = [presence for presence in enabled_presences if presence.location_id != OFFLINE]
         roles_by_location: dict[str, list[RoleSimulationContext]] = {
             location_id: [] for location_id in LOCATION_IDS
         }
@@ -258,7 +257,39 @@ class ContextBuilder:
                 raise ContextBuildError("世界或活动分支不存在")
             if branch.day != day or branch.time_slot != time_slot:
                 raise ContextBuildError("冻结时间与分支事实不一致")
+            if branch.current_location_id != player.location_id:
+                # presence 在 Session 外计算；必须与同次读取的 branch 重新对齐，
+                # 避免冻结旧位置和新版本。
+                raise ContextBuildError("冻结主角位置与分支事实不一致")
+            resolved_presences = resolve_world_presences(
+                world_store,
+                world_id=world_id,
+                day=day,
+                time_slot=time_slot,
+                player_location_id=branch.current_location_id,
+            )
+            supplied_facts = {
+                item.role_id: (item.kind, item.location_id, item.enabled) for item in presences
+            }
+            resolved_facts = {
+                item.role_id: (item.kind, item.location_id, item.enabled)
+                for item in resolved_presences
+            }
+            if supplied_facts != resolved_facts:
+                # NPC 规则不递增 branch/state version，必须在冻结 Session 内重做唯一位置裁决。
+                raise ContextBuildError("冻结角色位置与当前位置裁决不一致")
             world_state_version = branch.state_version
+            states_by_role: dict[int, WorldRoleState] = {}
+            roles_by_id: dict[int, Role] = {}
+            for presence in enabled_presences:
+                state = world_store.get_role_state(world_id, presence.role_id)
+                role = world_store.get_role(presence.role_id)
+                if state is None or not state.enabled or state.kind != presence.kind:
+                    raise ContextBuildError("冻结角色与世界角色事实不一致")
+                if role is None:
+                    raise ContextBuildError("冻结角色主记录不存在")
+                states_by_role[presence.role_id] = state
+                roles_by_id[presence.role_id] = role
 
             ordered = sorted(
                 located,
@@ -269,21 +300,15 @@ class ContextBuilder:
                 ),
             )
             for presence in ordered:
-                state = world_store.get_role_state(world_id, presence.role_id)
-                role = world_store.get_role(presence.role_id)
+                state = states_by_role[presence.role_id]
+                role = roles_by_id[presence.role_id]
                 memory = session.scalar(
                     select(WorldRoleMemory).where(
                         WorldRoleMemory.world_id == world_id,
                         WorldRoleMemory.role_id == presence.role_id,
                     )
                 )
-                if (
-                    state is None
-                    or role is None
-                    or memory is None
-                    or not state.enabled
-                    or state.kind != presence.kind
-                ):
+                if memory is None:
                     raise ContextBuildError("冻结角色与世界角色事实不一致")
 
                 definitions = decode_attribute_definitions(_definition_maps(role))
@@ -333,6 +358,12 @@ class ContextBuilder:
             time_slot=time_slot,
             world_state_version=world_state_version,
             protagonist_role_id=player.role_id,
+            world_role_versions=MappingProxyType(
+                {role_id: state.version for role_id, state in states_by_role.items()}
+            ),
+            role_definition_versions=MappingProxyType(
+                {role_id: role.version for role_id, role in roles_by_id.items()}
+            ),
             turn_positions=positions,
             locations=locations,
         )

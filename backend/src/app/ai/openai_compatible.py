@@ -65,15 +65,12 @@ class _WireChunk(BaseModel):
 
 
 class OpenAICompatibleProvider:
-    """复用应用级客户端；实例只持有传输依赖和固定重试上限。"""
+    """复用应用级客户端；每次 complete 或 stream 只发出一次传输请求。"""
 
     provider_type = "openai_compatible"
 
-    def __init__(self, http_client: httpx.AsyncClient, *, max_retries: int = 1) -> None:
-        if max_retries < 0:
-            raise ValueError("max_retries 不得小于 0")
+    def __init__(self, http_client: httpx.AsyncClient) -> None:
         self._http_client = http_client
-        self._max_retries = max_retries
 
     def _payload(self, request: ChatRequest, *, stream: bool) -> dict[str, JsonValue]:
         messages: list[JsonValue] = []
@@ -147,6 +144,12 @@ class OpenAICompatibleProvider:
             category, message, retryable = (
                 AiErrorCategory.AUTHENTICATION,
                 "Provider 认证失败",
+                False,
+            )
+        elif status_code == 403:
+            category, message, retryable = (
+                AiErrorCategory.PERMISSION,
+                "Provider 权限不足",
                 False,
             )
         elif status_code == 402:
@@ -248,131 +251,110 @@ class OpenAICompatibleProvider:
         )
 
     async def complete(self, request: ChatRequest, connection: ProviderConnection) -> ChatResponse:
-        for attempt in range(self._max_retries + 1):
-            response: httpx.Response | None = None
-            transport_error: AiProviderError | None = None
-            try:
-                response = await self._http_client.post(
-                    self._url(connection),
-                    headers=self._headers(connection),
-                    json=self._payload(request, stream=False),
-                )
-            except httpx.HTTPError as error:
-                transport_error = self._transport_error(type(error))
-            if transport_error is not None:
-                if attempt < self._max_retries:
-                    continue
-                raise transport_error
-            if response is None:
-                raise RuntimeError("Provider 响应状态不可达")
-            if response.status_code >= 400:
-                status_error = self._status_error(response.status_code)
-                if status_error.retryable and attempt < self._max_retries:
-                    continue
-                raise status_error
-            parsed = self._parse_response(response, request, connection)
-            if isinstance(parsed, AiProviderError):
-                raise parsed
-            return parsed
-        raise RuntimeError("不可达的 Provider 重试状态")
+        try:
+            response = await self._http_client.post(
+                self._url(connection),
+                headers=self._headers(connection),
+                json=self._payload(request, stream=False),
+            )
+        except httpx.HTTPError as error:
+            raise self._transport_error(type(error)) from None
+        if response.status_code >= 400:
+            raise self._status_error(response.status_code)
+        parsed = self._parse_response(response, request, connection)
+        if isinstance(parsed, AiProviderError):
+            raise parsed
+        return parsed
 
     async def stream(
         self, request: ChatRequest, connection: ProviderConnection
     ) -> AsyncIterator[ChatStreamEvent]:
-        for attempt in range(self._max_retries + 1):
-            emitted = False
-            stream_error: AiProviderError | None = None
-            text_parts: list[str] = []
-            reasoning_parts: list[str] = []
-            tool_calls = ToolCallAccumulator()
-            usage = _WireUsage()
-            finish_reason: str | None = None
-            saw_done = False
-            try:
-                async with self._http_client.stream(
-                    "POST",
-                    self._url(connection),
-                    headers=self._headers(connection),
-                    json=self._payload(request, stream=True),
-                ) as response:
-                    if response.status_code >= 400:
-                        stream_error = self._status_error(response.status_code)
-                    else:
-                        async for line in response.aiter_lines():
-                            stripped = line.strip()
-                            if not stripped or stripped.startswith(":"):
-                                continue
-                            if not stripped.startswith("data:"):
+        stream_error: AiProviderError | None = None
+        text_parts: list[str] = []
+        reasoning_parts: list[str] = []
+        tool_calls = ToolCallAccumulator()
+        usage = _WireUsage()
+        finish_reason: str | None = None
+        saw_done = False
+        try:
+            async with self._http_client.stream(
+                "POST",
+                self._url(connection),
+                headers=self._headers(connection),
+                json=self._payload(request, stream=True),
+            ) as response:
+                if response.status_code >= 400:
+                    stream_error = self._status_error(response.status_code)
+                else:
+                    async for line in response.aiter_lines():
+                        stripped = line.strip()
+                        if not stripped or stripped.startswith(":"):
+                            continue
+                        if not stripped.startswith("data:"):
+                            stream_error = self._invalid_response()
+                            break
+                        data = stripped.removeprefix("data:").strip()
+                        if data == "[DONE]":
+                            saw_done = True
+                            break
+                        try:
+                            chunk = _WireChunk.model_validate_json(data)
+                        except ValidationError:
+                            stream_error = self._invalid_response()
+                            break
+                        if chunk.usage is not None:
+                            usage = chunk.usage
+                        if not chunk.choices:
+                            continue
+                        choice = chunk.choices[0]
+                        finish_reason = choice.finish_reason or finish_reason
+                        delta = choice.delta
+                        if delta.reasoning_content:
+                            reasoning_parts.append(delta.reasoning_content)
+                            yield ChatStreamEvent(
+                                kind="reasoning_delta",
+                                reasoning_delta=delta.reasoning_content,
+                            )
+                        if delta.content:
+                            text_parts.append(delta.content)
+                            yield ChatStreamEvent(kind="text_delta", text_delta=delta.content)
+                        for wire_call in delta.tool_calls:
+                            if wire_call.index is None:
                                 stream_error = self._invalid_response()
                                 break
-                            data = stripped.removeprefix("data:").strip()
-                            if data == "[DONE]":
-                                saw_done = True
-                                break
-                            try:
-                                chunk = _WireChunk.model_validate_json(data)
-                            except ValidationError:
-                                stream_error = self._invalid_response()
-                                break
-                            if chunk.usage is not None:
-                                usage = chunk.usage
-                            if not chunk.choices:
-                                continue
-                            choice = chunk.choices[0]
-                            finish_reason = choice.finish_reason or finish_reason
-                            delta = choice.delta
-                            if delta.reasoning_content:
-                                emitted = True
-                                reasoning_parts.append(delta.reasoning_content)
-                                yield ChatStreamEvent(
-                                    kind="reasoning_delta",
-                                    reasoning_delta=delta.reasoning_content,
-                                )
-                            if delta.content:
-                                emitted = True
-                                text_parts.append(delta.content)
-                                yield ChatStreamEvent(kind="text_delta", text_delta=delta.content)
-                            for wire_call in delta.tool_calls:
-                                if wire_call.index is None:
-                                    stream_error = self._invalid_response()
-                                    break
-                                call_delta = ToolCallDelta(
-                                    index=wire_call.index,
-                                    id=wire_call.id,
-                                    type="function" if wire_call.type == "function" else None,
-                                    name_delta=wire_call.function.name,
-                                    arguments_delta=wire_call.function.arguments,
-                                )
-                                tool_calls.add(call_delta)
-                                emitted = True
-                                yield ChatStreamEvent(
-                                    kind="tool_call_delta", tool_call_deltas=[call_delta]
-                                )
-                            if stream_error is not None:
-                                break
-            except httpx.HTTPError as error:
-                stream_error = self._transport_error(type(error))
+                            call_delta = ToolCallDelta(
+                                index=wire_call.index,
+                                id=wire_call.id,
+                                type="function" if wire_call.type == "function" else None,
+                                name_delta=wire_call.function.name,
+                                arguments_delta=wire_call.function.arguments,
+                            )
+                            tool_calls.add(call_delta)
+                            yield ChatStreamEvent(
+                                kind="tool_call_delta", tool_call_deltas=[call_delta]
+                            )
+                        if stream_error is not None:
+                            break
+        except httpx.HTTPError as error:
+            stream_error = self._transport_error(type(error))
 
-            if stream_error is not None:
-                if stream_error.retryable and not emitted and attempt < self._max_retries:
-                    continue
-                raise stream_error
-            if not saw_done:
-                raise self._invalid_response()
-            try:
-                completed_calls = tool_calls.finish()
-            except ValueError:
-                raise self._invalid_response() from None
-            yield ChatStreamEvent(
-                kind="completed",
-                response=ChatResponse(
-                    text="".join(text_parts),
-                    reasoning="".join(reasoning_parts) or None,
-                    tool_calls=completed_calls,
-                    finish_reason=finish_reason,
-                    usage=self._usage(usage),
-                    provider_id=connection.provider_id,
-                    model_id=request.model_id,
-                ),
-            )
-            return
+        if stream_error is not None:
+            raise stream_error
+        if not saw_done:
+            raise self._invalid_response()
+        try:
+            completed_calls = tool_calls.finish()
+        except ValueError:
+            raise self._invalid_response() from None
+        yield ChatStreamEvent(
+            kind="completed",
+            response=ChatResponse(
+                text="".join(text_parts),
+                reasoning="".join(reasoning_parts) or None,
+                tool_calls=completed_calls,
+                finish_reason=finish_reason,
+                usage=self._usage(usage),
+                provider_id=connection.provider_id,
+                model_id=request.model_id,
+            ),
+        )

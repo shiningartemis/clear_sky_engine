@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -130,10 +130,12 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "世界角色" }),
     ).toBeInTheDocument();
-    expect(worldsApi.listWorldRoles).toHaveBeenCalledWith(
-      4,
-      expect.any(AbortSignal),
-    );
+    await waitFor(() => {
+      expect(worldsApi.listWorldRoles).toHaveBeenCalledWith(
+        4,
+        expect.any(AbortSignal),
+      );
+    });
   });
 
   it("navigates from world roles to the real game route", async () => {

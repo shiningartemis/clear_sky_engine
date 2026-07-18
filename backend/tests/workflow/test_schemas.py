@@ -234,7 +234,7 @@ def test_attribute_memory_output_accepts_update_without_objective_event() -> Non
             output,
             expected_location_id="the_home",
             expected_role_ids={1},
-            valid_event_keys=set(),
+            valid_event_keys_by_role={1: set()},
             memory_max_chars=50,
         )
         is output
@@ -250,7 +250,7 @@ def test_attribute_memory_output_rejects_separator_or_hard_max(
             _memory_output(memory_append=memory_append),
             expected_location_id="the_home",
             expected_role_ids={1},
-            valid_event_keys=set(),
+            valid_event_keys_by_role={1: set()},
             memory_max_chars=50,
         )
 
@@ -261,6 +261,43 @@ def test_attribute_memory_output_rejects_unknown_nonempty_event_key() -> None:
             _memory_output(source_event_id="missing"),
             expected_location_id="the_home",
             expected_role_ids={1},
-            valid_event_keys={"known"},
+            valid_event_keys_by_role={1: {"known"}},
+            memory_max_chars=50,
+        )
+
+
+def test_attribute_memory_output_rejects_event_known_only_by_another_role() -> None:
+    output = AttributeMemoryAnalysisOutput(
+        location_id="the_home",
+        roles=[
+            RoleAttributeMemoryOutput(
+                role_id=1,
+                attribute_update_intents=[
+                    AttributeUpdateIntent(
+                        role_id=1,
+                        attribute_key="mood",
+                        operation="replace",
+                        value="平静",
+                        reason="错误引用了另一名角色的事件",
+                        source_event_id="role-2-event",
+                        expected_version=3,
+                    )
+                ],
+                memory_append="角色一的记忆",
+            ),
+            RoleAttributeMemoryOutput(
+                role_id=2,
+                attribute_update_intents=[],
+                memory_append="角色二的记忆",
+            ),
+        ],
+    )
+
+    with pytest.raises(OutputBoundaryError, match="未知事件"):
+        validate_attribute_memory_output(
+            output,
+            expected_location_id="the_home",
+            expected_role_ids={1, 2},
+            valid_event_keys_by_role={1: set(), 2: {"role-2-event"}},
             memory_max_chars=50,
         )

@@ -1,8 +1,10 @@
 """Provider、模型目录与全局 AI 任务设置的事务及密钥边界。"""
 
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import MappingProxyType
 from typing import cast
 
 from pydantic import SecretStr
@@ -74,6 +76,29 @@ class ProviderConnectionRecord:
     base_url: str
     api_key: SecretStr
     options: dict[str, JsonValue]
+
+
+@dataclass(frozen=True)
+class RunnableTaskSettingsBundle:
+    """同一短 Session 内冻结的全部工作流配置，离开数据库边界后不得再读设置。"""
+
+    task_settings: Mapping[TaskKey, TaskSettingSnapshot]
+    models: Mapping[int, ModelRecord]
+    connections: Mapping[int, ProviderConnectionRecord]
+
+    def freeze_runnable_tasks(self) -> RunnableTaskSettingsBundle:
+        """已冻结 bundle 可安全复用，避免运行中重新访问数据库。"""
+
+        return self
+
+    def get_runnable_task_setting(self, task_key: TaskKey) -> TaskSettingSnapshot:
+        return self.task_settings[task_key]
+
+    def get_model(self, model_id: int) -> ModelRecord:
+        return self.models[model_id]
+
+    def get_provider_connection(self, provider_id: int) -> ProviderConnectionRecord:
+        return self.connections[provider_id]
 
 
 @dataclass(frozen=True)
@@ -441,4 +466,67 @@ class AiSettingsService:
                 version=record.version,
                 updated_at=record.updated_at,
                 resolved_structured_output_mode=resolved,
+            )
+
+    def freeze_runnable_tasks(self) -> RunnableTaskSettingsBundle:
+        """用单一短 Session 原子读取两项任务设置、模型和 Provider 连接。"""
+
+        with self._session_factory() as session:
+            ai_store = AiSettingsStore(session)
+            settings_store = TaskSettingsStore(session)
+            task_settings: dict[TaskKey, TaskSettingSnapshot] = {}
+            models: dict[int, ModelRecord] = {}
+            connections: dict[int, ProviderConnectionRecord] = {}
+            for task_key in TaskKey:
+                setting = settings_store.get_setting(task_key)
+                if setting is None:
+                    raise TaskSettingNotFoundError("AI 任务设置不存在")
+                record = self._task_setting_record(setting)
+                if setting.model_id is None:
+                    raise TaskSettingConfigurationError("AI 任务尚未选择模型")
+                model = ai_store.get_model(setting.model_id)
+                self._validate_selected_model(model, record.structured_output_mode)
+                assert model is not None
+                if record.structured_output_mode is StructuredOutputMode.AUTO:
+                    resolved = (
+                        StructuredOutputMode.NATIVE
+                        if model.capabilities_json.get("json_output") is True
+                        else StructuredOutputMode.PROMPT
+                    )
+                else:
+                    resolved = record.structured_output_mode
+                task_settings[task_key] = TaskSettingSnapshot(
+                    task_key=record.task_key,
+                    model_id=model.id,
+                    temperature=record.temperature,
+                    max_output_tokens=record.max_output_tokens,
+                    reasoning_effort=record.reasoning_effort,
+                    timeout_seconds=record.timeout_seconds,
+                    extra_prompt=record.extra_prompt,
+                    structured_output_mode=record.structured_output_mode,
+                    provider_options=freeze_json_object(record.provider_options),
+                    memory_target_chars=record.memory_target_chars,
+                    memory_max_chars=record.memory_max_chars,
+                    version=record.version,
+                    updated_at=record.updated_at,
+                    resolved_structured_output_mode=resolved,
+                )
+                models[model.id] = self._model_record(model)
+                if model.provider_id not in connections:
+                    provider = ai_store.get_provider(model.provider_id)
+                    if provider is None:
+                        raise AiSettingsNotFoundError("Provider 不存在")
+                    if not provider.api_key:
+                        raise AiSettingsConfigurationError("Provider 尚未配置 API Key")
+                    connections[provider.id] = ProviderConnectionRecord(
+                        provider_id=provider.id,
+                        provider_type=provider.provider_type,
+                        base_url=provider.base_url,
+                        api_key=SecretStr(provider.api_key),
+                        options=deepcopy(provider.extra_json),
+                    )
+            return RunnableTaskSettingsBundle(
+                task_settings=MappingProxyType(task_settings),
+                models=MappingProxyType(models),
+                connections=MappingProxyType(connections),
             )

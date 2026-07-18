@@ -1,6 +1,6 @@
 """两个固定 AI 任务的严格输出 Schema 与程序边界校验。"""
 
-from collections.abc import Set
+from collections.abc import Mapping, Set
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
@@ -120,7 +120,7 @@ def validate_attribute_memory_output(
     *,
     expected_location_id: str,
     expected_role_ids: Set[int],
-    valid_event_keys: Set[str],
+    valid_event_keys_by_role: Mapping[int, Set[str]],
     memory_max_chars: int,
 ) -> AttributeMemoryAnalysisOutput:
     """属性和记忆节点只接受本地图完整角色集及冻结事件引用。"""
@@ -132,6 +132,8 @@ def validate_attribute_memory_output(
         raise OutputBoundaryError("属性与记忆角色必须完整且唯一")
     if memory_max_chars < 1:
         raise OutputBoundaryError("记忆摘要硬上限无效")
+    if set(valid_event_keys_by_role) != set(expected_role_ids):
+        raise OutputBoundaryError("角色事件知识边界不完整")
 
     for role in output.roles:
         if "__" in role.memory_append or len(role.memory_append) > memory_max_chars:
@@ -141,7 +143,7 @@ def validate_attribute_memory_output(
                 raise OutputBoundaryError("属性更新意图角色不匹配")
             if (
                 intent.source_event_id is not None
-                and intent.source_event_id not in valid_event_keys
+                and intent.source_event_id not in valid_event_keys_by_role[role.role_id]
             ):
                 raise OutputBoundaryError("属性更新意图引用了未知事件")
     return output

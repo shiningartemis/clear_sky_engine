@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.types import JsonValue
-from app.story.models import Turn, TurnEvent, TurnEventParticipant, TurnStory
+from app.story.models import StateChange, Turn, TurnEvent, TurnEventParticipant, TurnStory
 
 KnowledgeLevel = Literal["participant", "observer", "told", "public"]
 
@@ -53,6 +53,57 @@ class StoryStore:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def add_turn(self, turn: Turn) -> None:
+        self._session.add(turn)
+        self._session.flush()
+
+    def add_story(self, story: TurnStory) -> None:
+        self._session.add(story)
+        self._session.flush()
+
+    def add_event(self, event: TurnEvent) -> None:
+        self._session.add(event)
+        self._session.flush()
+
+    def add_event_participant(self, participant: TurnEventParticipant) -> None:
+        self._session.add(participant)
+
+    def add_state_change(self, change: StateChange) -> None:
+        self._session.add(change)
+
+    def list_turns(self, *, world_id: int, branch_id: int) -> tuple[Turn, ...]:
+        """完整历史按最新轮次优先返回，不分页也不裁剪旧轮次。"""
+
+        statement = (
+            select(Turn)
+            .where(Turn.world_id == world_id, Turn.branch_id == branch_id)
+            .order_by(Turn.id.desc())
+        )
+        return tuple(self._session.scalars(statement))
+
+    def list_turn_stories(self, turn_id: int) -> tuple[TurnStory, ...]:
+        return tuple(
+            self._session.scalars(
+                select(TurnStory)
+                .where(TurnStory.turn_id == turn_id)
+                .order_by(TurnStory.sort_order, TurnStory.role_id)
+            )
+        )
+
+    def list_turn_events(self, turn_id: int) -> tuple[TurnEvent, ...]:
+        return tuple(
+            self._session.scalars(
+                select(TurnEvent).where(TurnEvent.turn_id == turn_id).order_by(TurnEvent.id)
+            )
+        )
+
+    def list_turn_state_changes(self, turn_id: int) -> tuple[StateChange, ...]:
+        return tuple(
+            self._session.scalars(
+                select(StateChange).where(StateChange.turn_id == turn_id).order_by(StateChange.id)
+            )
+        )
 
     def list_recent_role_turns(
         self,

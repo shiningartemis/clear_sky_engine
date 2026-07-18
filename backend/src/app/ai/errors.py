@@ -6,6 +6,7 @@ from enum import StrEnum
 class AiErrorCategory(StrEnum):
     INVALID_REQUEST = "invalid_request"
     AUTHENTICATION = "authentication"
+    PERMISSION = "permission"
     INSUFFICIENT_BALANCE = "insufficient_balance"
     RATE_LIMITED = "rate_limited"
     TIMEOUT = "timeout"

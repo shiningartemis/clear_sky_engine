@@ -185,7 +185,7 @@ async def test_stream_ignores_keep_alive_and_assembles_fragmented_output() -> No
 
 
 @respx.mock
-async def test_complete_retries_one_transient_error_before_output() -> None:
+async def test_complete_uses_one_transport_attempt() -> None:
     route = respx.post("https://provider.test/v1/chat/completions").mock(
         side_effect=[
             httpx.ConnectError("temporary"),
@@ -199,12 +199,11 @@ async def test_complete_retries_one_transient_error_before_output() -> None:
         ]
     )
     async with httpx.AsyncClient() as client:
-        response = await OpenAICompatibleProvider(client).complete(
-            make_request(), make_connection()
-        )
+        with pytest.raises(AiProviderError) as captured:
+            await OpenAICompatibleProvider(client).complete(make_request(), make_connection())
 
-    assert response.text == "ok"
-    assert route.call_count == 2
+    assert captured.value.category is AiErrorCategory.NETWORK
+    assert route.call_count == 1
 
 
 @respx.mock
@@ -261,12 +260,23 @@ async def test_error_mapping_is_consistent_and_redacted(
     )
     async with httpx.AsyncClient() as client:
         with pytest.raises(AiProviderError) as captured:
-            await OpenAICompatibleProvider(client, max_retries=0).complete(
-                make_request(), make_connection()
-            )
+            await OpenAICompatibleProvider(client).complete(make_request(), make_connection())
 
     assert captured.value.category is category
     assert captured.value.retryable is retryable
     assert captured.value.__context__ is None
     assert "test-api-key" not in str(captured.value)
     assert route.call_count == 1
+
+
+@respx.mock
+async def test_http_403_is_a_non_retryable_permission_error() -> None:
+    respx.post("https://provider.test/v1/chat/completions").mock(
+        return_value=httpx.Response(403, json={"error": {"message": "forbidden"}})
+    )
+    async with httpx.AsyncClient() as client:
+        with pytest.raises(AiProviderError) as captured:
+            await OpenAICompatibleProvider(client).complete(make_request(), make_connection())
+
+    assert captured.value.category is AiErrorCategory.PERMISSION
+    assert captured.value.retryable is False

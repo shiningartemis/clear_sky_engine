@@ -166,6 +166,62 @@ def _is_attribute_scalar(value: object) -> TypeGuard[AttributeScalar]:
     return type(value) in {int, float, str, bool}
 
 
+def _rules_for_state(store: WorldStore, state: WorldRoleState) -> tuple[LocationRule, ...]:
+    return tuple(
+        LocationRule(
+            weekday_mask=rule.weekday_mask,
+            time_slot=rule.time_slot,
+            mode=rule.mode,
+            priority=rule.priority,
+            enabled=rule.enabled,
+            candidates=tuple(
+                LocationCandidate(location_id=item.location_id, weight=item.weight)
+                for item in store.list_candidates(rule.id)
+            ),
+        )
+        for rule in store.list_location_rules(state.world_id, state.role_id)
+    )
+
+
+def resolve_world_presences(
+    store: WorldStore,
+    *,
+    world_id: int,
+    day: int,
+    time_slot: str,
+    player_location_id: str,
+) -> tuple[RolePresence, ...]:
+    """统一计算一个时段的全量位置，结算快照与游戏视图不得各自裁决。"""
+
+    presences: list[RolePresence] = []
+    for state in store.list_role_states(world_id):
+        location_id = (
+            player_location_id
+            if state.kind == "player"
+            else resolve_npc_location(
+                _rules_for_state(store, state),
+                world_id=world_id,
+                day=day,
+                time_slot=time_slot,
+                role_id=state.role_id,
+            )
+        )
+        presences.append(
+            RolePresence(
+                role_id=state.role_id,
+                kind="player" if state.kind == "player" else "npc",
+                location_id=location_id,
+                enabled=state.enabled,
+            )
+        )
+    return allocate_role_presences(
+        presences,
+        world_id=world_id,
+        day=day,
+        time_slot=time_slot,
+    )
+
+
 class WorldService:
     """每次业务调用只持有短事务，文件资源检查永不与 Session 重叠。"""
 
@@ -551,24 +607,6 @@ class WorldService:
             self._commit(session, "地点选择冲突")
         return self.get_game_view(world_id, "the_world_map")
 
-    def _rules_for_state(
-        self, store: WorldStore, state: WorldRoleState
-    ) -> tuple[LocationRule, ...]:
-        return tuple(
-            LocationRule(
-                weekday_mask=rule.weekday_mask,
-                time_slot=rule.time_slot,
-                mode=rule.mode,
-                priority=rule.priority,
-                enabled=rule.enabled,
-                candidates=tuple(
-                    LocationCandidate(location_id=item.location_id, weight=item.weight)
-                    for item in store.list_candidates(rule.id)
-                ),
-            )
-            for rule in store.list_location_rules(state.world_id, state.role_id)
-        )
-
     def get_game_view(self, world_id: int, scene_id: str) -> GameViewRecord:
         scene = self._scenes.get(scene_id)
         if scene is None:
@@ -583,37 +621,12 @@ class WorldService:
             if player is None:
                 raise WorldConflictError("世界主角缺失")
 
-            presences = [
-                RolePresence(
-                    role_id=player.role_id,
-                    kind="player",
-                    location_id=branch.current_location_id,
-                    enabled=True,
-                )
-            ]
-            for state in states:
-                if state.kind != "npc":
-                    continue
-                location_id = resolve_npc_location(
-                    self._rules_for_state(store, state),
-                    world_id=world_id,
-                    day=branch.day,
-                    time_slot=branch.time_slot,
-                    role_id=state.role_id,
-                )
-                presences.append(
-                    RolePresence(
-                        role_id=state.role_id,
-                        kind="npc",
-                        location_id=location_id,
-                        enabled=state.enabled,
-                    )
-                )
-            resolved = allocate_role_presences(
-                presences,
+            resolved = resolve_world_presences(
+                store,
                 world_id=world_id,
                 day=branch.day,
                 time_slot=branch.time_slot,
+                player_location_id=branch.current_location_id,
             )
             visible_roles = (
                 ()

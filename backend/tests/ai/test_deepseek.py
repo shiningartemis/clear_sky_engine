@@ -191,7 +191,7 @@ async def test_official_error_codes_use_common_redacted_categories(
     )
     async with httpx.AsyncClient() as client:
         with pytest.raises(AiProviderError) as captured:
-            await DeepSeekProvider(client, max_retries=0).complete(thinking_request(), connection())
+            await DeepSeekProvider(client).complete(thinking_request(), connection())
 
     assert captured.value.category is category
     assert "deepseek-test-key" not in str(captured.value)

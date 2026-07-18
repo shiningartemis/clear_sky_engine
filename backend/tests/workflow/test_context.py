@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.character.models import Role
@@ -21,7 +22,14 @@ from app.workflow.schemas import (
     ObjectiveEventOutput,
     RoleChronicleOutput,
 )
-from app.world.models import World, WorldBranch, WorldRoleMemory, WorldRoleState
+from app.world.models import (
+    CharacterLocationCandidate,
+    CharacterLocationRule,
+    World,
+    WorldBranch,
+    WorldRoleMemory,
+    WorldRoleState,
+)
 
 NOW = datetime(2026, 7, 17, tzinfo=UTC)
 
@@ -108,6 +116,25 @@ def session_factory(tmp_path: Path) -> sessionmaker[Session]:
                 )
             )
         session.flush()
+        for role_id, location_id in ((2, "the_home"), (3, "the_school")):
+            rule = CharacterLocationRule(
+                world_id=1,
+                role_id=role_id,
+                weekday_mask=127,
+                time_slot="morning",
+                mode="fixed",
+                priority=1,
+                enabled=True,
+            )
+            session.add(rule)
+            session.flush()
+            session.add(
+                CharacterLocationCandidate(
+                    rule_id=rule.id,
+                    location_id=location_id,
+                    weight=1,
+                )
+            )
         full_memory = "开端__" + "完整长期记忆" * 200
         for role_id in range(1, 5):
             session.add(
@@ -235,6 +262,82 @@ def test_snapshot_rejects_time_that_differs_from_frozen_branch(
             player_intent="使用过期页面提交",
             presences=_presences(),
         )
+
+
+def test_snapshot_rejects_stale_player_presence_after_branch_location_changes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    stale_presences = (
+        RolePresence(role_id=1, kind="player", location_id="the_school"),
+        *_presences()[1:],
+    )
+
+    with pytest.raises(ContextBuildError, match="主角位置"):
+        ContextBuilder(session_factory).build_turn_snapshot(
+            world_id=1,
+            branch_id=1,
+            day=8,
+            time_slot="morning",
+            player_intent="基于旧页面行动",
+            presences=stale_presences,
+        )
+
+
+def test_snapshot_rejects_stale_npc_presence_after_location_rule_changes(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        candidate = session.scalar(
+            select(CharacterLocationCandidate)
+            .join(
+                CharacterLocationRule,
+                CharacterLocationRule.id == CharacterLocationCandidate.rule_id,
+            )
+            .where(CharacterLocationRule.world_id == 1, CharacterLocationRule.role_id == 2)
+        )
+        assert candidate is not None
+        candidate.location_id = "the_mall"
+        session.commit()
+
+    with pytest.raises(ContextBuildError, match="位置裁决"):
+        ContextBuilder(session_factory).build_turn_snapshot(
+            world_id=1,
+            branch_id=1,
+            day=8,
+            time_slot="morning",
+            player_intent="仍按旧规则行动",
+            presences=_presences(),
+        )
+
+
+def test_snapshot_accepts_resolved_presences_when_world_has_disabled_npc(
+    session_factory: sessionmaker[Session],
+) -> None:
+    with session_factory() as session:
+        disabled = session.scalar(
+            select(WorldRoleState).where(
+                WorldRoleState.world_id == 1,
+                WorldRoleState.role_id == 4,
+            )
+        )
+        assert disabled is not None
+        disabled.enabled = False
+        session.commit()
+
+    snapshot = ContextBuilder(session_factory).build_turn_snapshot(
+        world_id=1,
+        branch_id=1,
+        day=8,
+        time_slot="morning",
+        player_intent="继续行动",
+        presences=_presences()[:3],
+    )
+
+    assert dict(snapshot.turn_positions) == {
+        1: "the_home",
+        2: "the_home",
+        3: "the_school",
+    }
 
 
 def test_role_context_contains_only_own_history_and_public_knowledge(

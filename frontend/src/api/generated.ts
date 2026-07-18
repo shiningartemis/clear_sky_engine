@@ -415,7 +415,7 @@ export interface components {
          * AiErrorCategory
          * @enum {string}
          */
-        AiErrorCategory: "invalid_request" | "authentication" | "insufficient_balance" | "rate_limited" | "timeout" | "network" | "unavailable" | "invalid_response" | "cancelled";
+        AiErrorCategory: "invalid_request" | "authentication" | "permission" | "insufficient_balance" | "rate_limited" | "timeout" | "network" | "unavailable" | "invalid_response" | "cancelled";
         /**
          * AttributeDefinition
          * @description 角色主表拥有的单个平铺属性定义。

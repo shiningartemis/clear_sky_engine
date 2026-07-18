@@ -31,7 +31,7 @@
 
 ## 2. 当前状态
 
-- 当前执行点：任务 5——结构化 AI Schema、状态快照与 ContextBuilder 已完成并停止在任务边界；任务 6 尚未开始。
+- 当前执行点：任务 8——原子结算、时间推进与历史查询已完成，任务 6~8 最终联合审查通过；按用户本轮范围停在任务 8，任务 9 尚未开始。
 - 任务 1 开始基线提交：`7cf00d2 docs: define merged phase 4 and 5 implementation plan`。
 - [x] 阶段 1：工程、本地运行、安全启动器、检查脚本和 onedir 构建基线完成；干净 Windows 11 x64 仍作为最终发布门禁保留。
 - [x] 阶段 2：Provider/Model 管理、OpenAI-compatible、DeepSeek、普通/流式/JSON/Tool Calls 和真实 API 验证完成。
@@ -530,13 +530,15 @@ class AttemptResult[T]:
 
 **Steps**
 
-- [ ] 用 fake Provider/respx 写单次成功、第三次成功、三次耗尽、不可重试立即失败、Schema 无效重试、取消打断退避、配置冻结和 native/prompt 两路径同 Schema 测试。
-- [ ] 写 Provider 回归证明一次节点最多产生三次实际 HTTP 请求，不是 3×内部重试。
-- [ ] 运行聚焦测试确认失败后实现 `TaskInvoker`、`RetryPolicy` 和安全请求构建。
-- [ ] 运行聚焦测试、Ruff、Pyright、`./scripts/check.ps1`；不在此任务运行付费 Playwright。
-- [ ] 更新本文件并提交 `feat: add structured ai task invocation and retries`。
+- [x] 用 fake Provider/respx 写单次成功、第三次成功、三次耗尽、不可重试立即失败、Schema 无效重试、取消打断退避、配置冻结和 native/prompt 两路径同 Schema 测试。
+- [x] 写 Provider 回归证明一次节点最多产生三次实际 HTTP 请求，不是 3×内部重试。
+- [x] 运行聚焦测试确认失败后实现 `TaskInvoker`、`RetryPolicy` 和安全请求构建。
+- [x] 运行聚焦测试、Ruff、Pyright、`./scripts/check.ps1`；不在此任务运行付费 Playwright。
+- [x] 更新本文件；用户本轮明确要求不提交代码，因此改动保留在工作区，未执行原计划提交。
 
 **Expected:** 尝试次数与真实 HTTP 次数一致；错误分类符合产品定义；成功节点可复用。
+
+**验证记录（2026-07-18）：** TDD RED 分别确认新模块缺失、Provider 内部重试、业务边界不重试、跨角色事件引用和 403 分类按预期失败；修复后任务聚焦测试 `46 passed`，Ruff 与 Pyright 通过。独立任务审查首轮发现 1 个 Critical、2 个 Important、1 个 Minor，修复后复审为 Spec Compliance ✅、Task quality Approved。`scripts/generate-api.ps1` 同步 `PERMISSION` 枚举后，`scripts/check.ps1` 通过：后端 `262 passed, 6 deselected`，前端 `140 passed`，Ruff、Pyright、Biome、TypeScript 与 Vite build 全部成功；仅保留既有的约 1.69 MB Phaser chunk 警告。真实 AI/付费 Playwright 不属于本任务且未运行。
 
 ---
 
@@ -575,13 +577,15 @@ class RunStatus(StrEnum):
 
 **Steps**
 
-- [ ] 用可控 async fake 写地图内严格串联、地图间确实重叠、并发上限、地点失败不进第二节点、属性失败不重跑地点、成功节点内存复用、离线跳过、单活动 run 和取消测试。
-- [ ] 写冻结设置测试：运行中保存新配置不改变该 run，新 run 读取新版本。
-- [ ] 运行聚焦测试确认失败后实现 runtime/executor/manager；所有并发与时间测试使用 Event/虚拟时钟，不用真实 sleep。
-- [ ] 在 `create_app` lifespan 创建并销毁唯一 Manager；应用退出取消活动运行。
-- [ ] 运行聚焦测试与 `./scripts/check.ps1`，更新本文件并提交 `feat: run map chains in memory`。
+- [x] 用可控 async fake 写地图内严格串联、地图间确实重叠、并发上限、地点失败不进第二节点、属性失败不重跑地点、成功节点内存复用、离线跳过、单活动 run 和取消测试。
+- [x] 写冻结设置测试：运行中保存新配置不改变该 run，新 run 读取新版本。
+- [x] 运行聚焦测试确认失败后实现 runtime/executor/manager；所有并发与时间测试使用 Event/虚拟时钟，不用真实 sleep。
+- [x] 在 `create_app` lifespan 创建并销毁唯一 Manager；应用退出取消活动运行。
+- [x] 运行聚焦测试与 `./scripts/check.ps1` 并更新本文件；用户本轮明确要求不提交代码，因此改动保留在工作区。
 
 **Expected:** 无 `turn_run` 数据写入；地图链按设计并行；任何失败都只留下安全内存终态。
+
+**验证记录（2026-07-18）：** TDD RED 先确认 runtime/executor/manager 缺失，随后用 Event/虚拟时钟覆盖地图并行、图内串联、Semaphore 上限、失败/取消、实时 attempt/retrying、单活动槽和设置冻结。三轮独立审查依次发现并修复业务失败定位、完整输出无限保留、多 Session 冻结不一致、结算交接时序和终态 sink 取消竞态；最终复审 Spec Compliance ✅、无 Critical/Important/Minor。最终聚焦组合 `61 passed`，Ruff 与 Pyright 通过；`scripts/check.ps1` 通过：后端 `281 passed, 6 deselected`，前端 `140 passed`，静态检查与 Vite build 全部成功，仅保留既有约 1.69 MB chunk 警告。真实 AI/付费 Playwright 不属于本任务且未运行。
 
 ---
 
@@ -627,13 +631,15 @@ def advance_time(day: int, time_slot: TimeSlot) -> tuple[int, TimeSlot]:
 
 **Steps**
 
-- [ ] 先写四时间段/跨日表驱动测试、属性无变化仍追加合理摘要、首次/后续 `__` 追加、世界与角色隔离测试。
-- [ ] 写事务故障注入：故事、事件、第二角色属性、第二角色记忆、branch version 冲突和 commit 前异常，逐一断言 turn/故事/事件/state_change/属性/记忆/时间全部未变。
-- [ ] 写历史测试：主角第一、已定位全纪事、offline 固定说明、旧轮次完整、最近 5 有效轮次只取 `turn_story`。
-- [ ] 运行聚焦测试确认失败后实现时间函数、Store 和 SettlementService。
-- [ ] 运行聚焦测试与 `./scripts/check.ps1`，更新本文件并提交 `feat: settle turns atomically`。
+- [x] 先写四时间段/跨日表驱动测试、属性无变化仍追加合理摘要、首次/后续 `__` 追加、世界与角色隔离测试。
+- [x] 写事务故障注入：故事、事件、第二角色属性、第二角色记忆、branch version 冲突和 commit 前异常，逐一断言 turn/故事/事件/state_change/属性/记忆/时间全部未变。
+- [x] 写历史测试：主角第一、已定位全纪事、offline 固定说明、旧轮次完整、最近 5 有效轮次只取 `turn_story`。
+- [x] 运行聚焦测试确认失败后实现时间函数、Store 和 SettlementService。
+- [x] 运行聚焦测试与 `./scripts/check.ps1` 并更新本文件；用户本轮明确要求不提交代码，因此改动保留在工作区。
 
 **Expected:** 只有完整成功产生一个 turn；属性表与记忆表来自同一 AI 响应并在同一事务生效；失败时间不动。
+
+**验证记录（2026-07-18）：** TDD RED 先确认时间模块、结算服务与 lifespan 接线缺失，随后覆盖四时间段/跨日、属性与记忆写入、世界隔离、六类事务故障注入、历史完整投影和最近 5 个有效轮次。任务 8 首轮审查发现离线角色版本未冻结、连续 intent 审计错误、历史回退当前角色状态及记忆上限重验恒真，均增加独立 RED→GREEN 回归并修复；复审后又按计划精确顺序把 `turn_story` 移到事件 ID 映射之后。任务 6~8 最终联合审查继续发现并修复两项冻结竞态：ContextBuilder 现于同一 Session 重做全量位置裁决并拒绝陈旧主角/NPC 位置，快照现冻结全部启用角色（含 offline）的 `Role.version` 且结算在任何写入前逐项校验；对应回归也覆盖禁用 NPC 正常路径与 located/offline 角色定义变化整轮回滚。最终受影响组合 `133 passed`，控制端关键组合 `64 passed`，Ruff 与 Pyright 通过，最终联合复审结论为 Spec Compliance GO、Code Quality Approved。前端门禁曾暴露 `App.test.tsx` 的 effect 等待竞态，改用 `waitFor` 后并发 5 轮均通过。最终 `scripts/check.ps1` 通过：后端 `307 passed, 6 deselected`，前端 `140 passed`，OpenAPI 漂移、Ruff、Pyright、Biome、TypeScript 与 Vite build 全部成功；仅保留既有约 1.69 MB Phaser chunk 警告。真实 AI/付费 Playwright 属于后续任务 13~15，本任务未运行。
 
 ---
 

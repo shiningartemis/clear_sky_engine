@@ -6,7 +6,7 @@ from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.ai.service import AiSettingsService
+from app.ai.service import AiSettingsService, ProviderChanges
 from app.ai.types import JsonValue
 from app.config import AppConfig
 from app.db.migrations import upgrade_database
@@ -275,6 +275,38 @@ def test_runnable_snapshot_is_unchanged_by_later_saves(service: AiSettingsServic
 
     assert snapshot.version == 2
     assert snapshot.provider_options == {"seed": 7}
+
+
+def test_runnable_bundle_freezes_both_tasks_and_provider_connection(
+    service: AiSettingsService,
+) -> None:
+    model_id = _create_model(service)
+    service.update_task_setting(
+        TaskKey.LOCATION_SIMULATION,
+        _update(model_id, provider_options={"seed": 7}),
+    )
+    service.update_task_setting(
+        TaskKey.ATTRIBUTE_MEMORY_ANALYSIS,
+        _update(model_id, memory_target_chars=20, memory_max_chars=50),
+    )
+
+    bundle = service.freeze_runnable_tasks()
+    provider_id = bundle.get_model(model_id).provider_id
+    service.update_task_setting(
+        TaskKey.LOCATION_SIMULATION,
+        _update(model_id, provider_options={"seed": 9}),
+    )
+    service.update_provider(
+        provider_id,
+        ProviderChanges(api_key_supplied=True, api_key="next-test-only-key"),
+    )
+
+    assert set(bundle.task_settings) == set(TaskKey)
+    assert bundle.get_runnable_task_setting(TaskKey.LOCATION_SIMULATION).provider_options == {
+        "seed": 7
+    }
+    assert bundle.get_runnable_task_setting(TaskKey.ATTRIBUTE_MEMORY_ANALYSIS).model_id == model_id
+    assert bundle.get_provider_connection(provider_id).api_key.get_secret_value() == "test-only-key"
 
 
 def test_runnable_snapshot_provider_options_are_deeply_immutable(

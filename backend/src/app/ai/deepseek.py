@@ -31,8 +31,8 @@ class DeepSeekProvider(OpenAICompatibleProvider):
 
     provider_type = "deepseek"
 
-    def __init__(self, http_client: httpx.AsyncClient, *, max_retries: int = 1) -> None:
-        super().__init__(http_client, max_retries=max_retries)
+    def __init__(self, http_client: httpx.AsyncClient) -> None:
+        super().__init__(http_client)
 
     def _payload(self, request: ChatRequest, *, stream: bool) -> dict[str, JsonValue]:
         payload = super()._payload(request, stream=stream)

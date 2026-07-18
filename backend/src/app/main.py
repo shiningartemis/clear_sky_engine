@@ -29,6 +29,10 @@ from app.resources.bootstrap import ensure_default_maps
 from app.resources.catalog import ResourceCatalog
 from app.security import LocalSecurity, LocalSecurityMiddleware
 from app.static_site import configure_static_site
+from app.story.service import SettlementService
+from app.workflow.ai_tasks import TaskInvoker
+from app.workflow.executor import MapChainExecutor
+from app.workflow.manager import TurnRunManager
 from app.world.service import WorldService
 
 
@@ -79,8 +83,17 @@ def create_app(
             provider_registry = ProviderRegistry(
                 [OpenAICompatibleProvider(http_client), DeepSeekProvider(http_client)]
             )
-            yield
-            provider_registry = None
+            app.state.task_invoker = TaskInvoker(ai_settings_service, provider_registry)
+            app.state.settlement_service = SettlementService(session_factory)
+            app.state.turn_run_manager = TurnRunManager(
+                lambda invoker: MapChainExecutor(invoker),
+                settlement_handler=app.state.settlement_service.settle,
+            )
+            try:
+                yield
+            finally:
+                await app.state.turn_run_manager.shutdown()
+                provider_registry = None
         engine.dispose()
 
     app = FastAPI(
