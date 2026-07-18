@@ -5,6 +5,7 @@ import asyncio
 import pytest
 
 from app.workflow.context import AttributeMemoryContext, LocationSimulationContext
+from app.workflow.executor import ProgressSink
 from app.workflow.manager import ActiveTurnRunError, FrozenRunInvoker, TurnRunManager
 from app.workflow.retry import AttemptObserver, AttemptResult
 from app.workflow.runtime import RunStatus, TurnRun
@@ -66,19 +67,20 @@ async def test_manager_rejects_second_active_run_and_releases_slot_after_complet
     gate = asyncio.Event()
     executors: list[BlockingExecutor] = []
 
-    def factory(invoker: FrozenRunInvoker) -> BlockingExecutor:
+    def factory(invoker: FrozenRunInvoker, _sink: ProgressSink) -> BlockingExecutor:
         assert isinstance(invoker, FrozenInvoker)
         executor = BlockingExecutor(invoker, gate)
         executors.append(executor)
         return executor
 
     manager = TurnRunManager(factory, settlement_handler=_settle)
-    first = await manager.start((), VersionedInvoker())
+    first = await manager.create((), VersionedInvoker())
+    await manager.claim(first.run_id)
     await asyncio.wait_for(executors[0].started.wait(), timeout=1)
     assert first.memory_max_chars == 50
 
     with pytest.raises(ActiveTurnRunError):
-        await manager.start((), VersionedInvoker())
+        await manager.create((), VersionedInvoker())
     gate.set()
     await manager.wait(first.run_id)
 
@@ -90,7 +92,7 @@ async def test_manager_freezes_configuration_for_each_new_run() -> None:
     gates = [asyncio.Event(), asyncio.Event()]
     executors: list[BlockingExecutor] = []
 
-    def factory(invoker: FrozenRunInvoker) -> BlockingExecutor:
+    def factory(invoker: FrozenRunInvoker, _sink: ProgressSink) -> BlockingExecutor:
         assert isinstance(invoker, FrozenInvoker)
         executor = BlockingExecutor(invoker, gates[len(executors)])
         executors.append(executor)
@@ -98,12 +100,14 @@ async def test_manager_freezes_configuration_for_each_new_run() -> None:
 
     source = VersionedInvoker()
     manager = TurnRunManager(factory, settlement_handler=_settle)
-    first = await manager.start((), source)
+    first = await manager.create((), source)
+    await manager.claim(first.run_id)
     await asyncio.wait_for(executors[0].started.wait(), timeout=1)
     source.version = 2
     gates[0].set()
     await manager.wait(first.run_id)
-    second = await manager.start((), source)
+    second = await manager.create((), source)
+    await manager.claim(second.run_id)
     await asyncio.wait_for(executors[1].started.wait(), timeout=1)
     gates[1].set()
     await manager.wait(second.run_id)
@@ -116,14 +120,15 @@ async def test_manager_shutdown_cancels_the_active_run() -> None:
     gate = asyncio.Event()
     executors: list[BlockingExecutor] = []
 
-    def factory(invoker: FrozenRunInvoker) -> BlockingExecutor:
+    def factory(invoker: FrozenRunInvoker, _sink: ProgressSink) -> BlockingExecutor:
         assert isinstance(invoker, FrozenInvoker)
         executor = BlockingExecutor(invoker, gate)
         executors.append(executor)
         return executor
 
     manager = TurnRunManager(factory, settlement_handler=_settle)
-    run = await manager.start((), VersionedInvoker())
+    run = await manager.create((), VersionedInvoker())
+    await manager.claim(run.run_id)
     await asyncio.wait_for(executors[0].started.wait(), timeout=1)
     await manager.shutdown()
 
@@ -140,19 +145,24 @@ async def test_manager_keeps_slot_until_settlement_and_only_retains_safe_summary
         await gate.wait()
         return 42
 
-    manager = TurnRunManager(lambda _invoker: CompletingExecutor(), settlement_handler=settle)
-    first = await manager.start((), VersionedInvoker())
+    manager = TurnRunManager(
+        lambda _invoker, _sink: CompletingExecutor(), settlement_handler=settle
+    )
+    first = await manager.create((), VersionedInvoker())
+    await manager.claim(first.run_id)
     await entered.wait()
 
+    assert (await manager.get(first.run_id)).status is RunStatus.RUNNING
     with pytest.raises(ActiveTurnRunError):
-        await manager.start((), VersionedInvoker())
+        await manager.create((), VersionedInvoker())
     gate.set()
     summary = await manager.wait(first.run_id)
 
     assert summary.turn_id == 42
     assert not hasattr(summary, "map_runs")
     assert first.map_runs == {}
-    second = await manager.start((), VersionedInvoker())
+    second = await manager.create((), VersionedInvoker())
+    await manager.claim(second.run_id)
     with pytest.raises(KeyError):
         await manager.wait(first.run_id)
     await manager.wait(second.run_id)
@@ -163,10 +173,11 @@ async def test_manager_marks_a_successful_run_failed_when_settlement_rejects_it(
         raise RuntimeError("结算冲突")
 
     manager = TurnRunManager(
-        lambda _invoker: CompletingExecutor(),
+        lambda _invoker, _sink: CompletingExecutor(),
         settlement_handler=fail_settlement,
     )
-    run = await manager.start((), VersionedInvoker())
+    run = await manager.create((), VersionedInvoker())
+    await manager.claim(run.run_id)
     summary = await manager.wait(run.run_id)
 
     assert run.status is RunStatus.FAILED
@@ -183,10 +194,11 @@ async def test_manager_emits_one_success_terminal_only_after_settlement() -> Non
         return 9
 
     manager = TurnRunManager(
-        lambda _invoker: TerminalRecordingExecutor(timeline),
+        lambda _invoker, _sink: TerminalRecordingExecutor(timeline),
         settlement_handler=settle,
     )
-    run = await manager.start((), VersionedInvoker())
+    run = await manager.create((), VersionedInvoker())
+    await manager.claim(run.run_id)
     summary = await manager.wait(run.run_id)
 
     assert summary.status is RunStatus.SUCCEEDED

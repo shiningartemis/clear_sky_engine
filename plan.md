@@ -31,7 +31,7 @@
 
 ## 2. 当前状态
 
-- 当前执行点：任务 8——原子结算、时间推进与历史查询已完成，任务 6~8 最终联合审查通过；按用户本轮范围停在任务 8，任务 9 尚未开始。
+- 当前执行点：任务 9——轮次 API、NDJSON 与断线取消已完成；任务 10 尚未开始。
 - 任务 1 开始基线提交：`7cf00d2 docs: define merged phase 4 and 5 implementation plan`。
 - [x] 阶段 1：工程、本地运行、安全启动器、检查脚本和 onedir 构建基线完成；干净 Windows 11 x64 仍作为最终发布门禁保留。
 - [x] 阶段 2：Provider/Model 管理、OpenAI-compatible、DeepSeek、普通/流式/JSON/Tool Calls 和真实 API 验证完成。
@@ -648,10 +648,15 @@ def advance_time(day: int, time_slot: TimeSlot) -> tuple[int, TimeSlot]:
 **Files**
 
 - Create: `backend/src/app/api/turns.py`
-- Modify: `backend/src/app/api/worlds.py`
 - Modify: `backend/src/app/main.py`
+- Modify: `backend/src/app/workflow/context.py`
+- Modify: `backend/src/app/workflow/executor.py`
+- Modify: `backend/src/app/workflow/manager.py`
+- Modify: `backend/src/app/story/service.py`
+- Modify: `backend/src/app/story/store.py`
 - Create: `backend/tests/test_turn_api.py`
 - Create: `backend/tests/test_turn_stream.py`
+- Modify: related workflow/story tests and `frontend/src/api/generated.ts`
 
 **API contract**
 
@@ -667,13 +672,15 @@ NDJSON 终态：`run_succeeded` 带新 turn DTO；`run_failed` 带可操作安�
 
 **Steps**
 
-- [ ] 先写创建/重复创建、未配置、错误世界、空意图、状态、单次 stream 领取、分块事件、幂等取消、未领取超时、断线取消、重启式 404 和历史 API 测试。
-- [ ] 通过受控 fake executor 证明 stream 断开后 DB 无 turn/属性/记忆/时间变化。
-- [ ] 实现薄 Router；业务状态归 Manager/SettlementService，Router 只做 DTO/HTTP/StreamingResponse 转换。
-- [ ] 运行 `./scripts/generate-api.ps1`，再运行后端聚焦测试和 `./scripts/check.ps1`。
-- [ ] 更新本文件并提交 `feat: expose in-memory turn run api`。
+- [x] 先写创建/重复创建、未配置、错误世界、空意图、状态、单次 stream 领取、分块事件、幂等取消、未领取超时、断线取消、重启式 404 和历史 API 测试。
+- [x] 通过受控 fake executor 证明 stream 断开后 DB 无 turn/属性/记忆/时间变化。
+- [x] 实现薄 Router；业务状态归 Manager/SettlementService，Router 只做 DTO/HTTP/StreamingResponse 转换。
+- [x] 运行 `./scripts/generate-api.ps1`，再运行后端聚焦测试和 `./scripts/check.ps1`。
+- [x] 更新本文件并提交 `feat: expose in-memory turn run api`。
 
 **Expected:** 页面生命周期与 run 生命周期绑定；终态不重复；重启只看到上次成功轮次。
+
+**验证记录（2026-07-18）：** 按 TDD 先后确认缺少轮次 API/当前快照入口/完整 Turn 投影、未领取 pending 清理、并发取消死锁、响应体首次迭代前断线清理、泛化 AI 错误和事件类型契约等 RED，再以最小实现转 GREEN。受控 fake executor 与原始 ASGI 传输失败回归证明断线会等待取消，且不生成 turn、不改变属性/记忆/时间/branch head；其余测试覆盖创建与配置边界、单次领取、10 秒注入式 watchdog、幂等及并发取消、三类终态、重启 404 和完整历史投影。独立复审确认原两项 Important（首轮 body 前断线、错误不可操作）均已修复，最终结论 GO、无 Critical/Important。最终任务聚焦 `55 passed`；`scripts/generate-api.ps1` 已同步含八种 `TurnEventKind` 联合的生成类型；`scripts/check.ps1` 通过：后端 `333 passed, 6 deselected`，前端 `140 passed`，OpenAPI 漂移、Ruff、Pyright、Biome、TypeScript 与 Vite build 全部成功，仅保留既有约 1.69 MB Phaser chunk 警告。任务 9 未改变 Provider 传输；真实 AI/付费 Playwright 属于后续任务 13~15，未运行。
 
 ---
 
@@ -913,6 +920,7 @@ npm --prefix frontend run test:e2e:live
 | 2026-07-16 | 任务 4 | RED：聚焦 `14 failed, 22 passed`；GREEN：聚焦、Ruff、Pyright、`scripts/check.ps1`、旧哨兵/入口搜索与 diff 审计 | 聚焦 `36 passed`；完整检查后端 `225 passed, 6 deselected`、前端 `140 passed`，所有静态检查和构建通过；仅既有 Vite 大包警告；轮次快照尚不存在，未提前实现任务 5+ |
 | 2026-07-17 | 任务 5 | RED：聚焦 pytest 因缺少 `app.workflow.schemas`、`app.workflow.context` 且事件来源仍要求整数而收集失败；补充快照 RED `2 failed, 3 passed`；GREEN：聚焦 pytest、Ruff、Pyright、`scripts/check.ps1`、diff 自审 | 聚焦 `54 passed`；完整检查后端 `245 passed, 6 deselected`、前端 `140 passed`，Ruff/Pyright/Biome/TypeScript/OpenAPI 漂移检查/Vite build 全部通过；仅既有 Vite 大包警告；未改 Provider 传输，未运行付费真实 AI 测试；正式独立审查由控制器执行 |
 | 2026-07-17 | 任务 5 审查修复 | RED：逐角色片段、共享事件知识行隔离、深冻结和固定 Prompt 回归 `3 failed, 4 passed`；GREEN：任务 5 聚焦 pytest、Ruff、Pyright、`scripts/check.ps1`、暂存范围审计 | 聚焦 `56 passed`；完整检查后端 `247 passed, 6 deselected`、前端 `140 passed`；属性/记忆上下文无顶层全量事件，每个角色仅携带自身纪事、可知事件及自身知识行，地点输出全部转换为独立深冻结值；删除临时报告，验证事实只保留在本文件；仅既有 Vite 大包警告 |
+| 2026-07-18 | 任务 9 | RED→GREEN：轮次 API、Manager 生命周期、原始 ASGI 早期断线、受控 fake executor；`uv run pytest ... -q`、`scripts/generate-api.ps1`、`scripts/check.ps1`、独立复审 | 聚焦 `55 passed`；完整检查后端 `333 passed, 6 deselected`、前端 `140 passed`；静态检查、OpenAPI 漂移和生产构建全部通过；复审 GO、无 Critical/Important；仅既有 Vite 大包警告；真实 AI/付费 Playwright 属后续任务，未运行 |
 
 后续每个任务在完成提交前追加一行，至少记录日期、精确命令、pass/fail、测试数量或关键证据、未验证项。
 

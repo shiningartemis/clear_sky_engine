@@ -223,6 +223,25 @@ def _presences() -> tuple[RolePresence, ...]:
     )
 
 
+def test_current_snapshot_resolves_all_world_presences_in_the_context_layer(
+    session_factory: sessionmaker[Session],
+) -> None:
+    snapshot = ContextBuilder(session_factory).build_current_turn_snapshot(
+        world_id=1,
+        player_intent="准备拜访同图 NPC",
+    )
+
+    assert snapshot.branch_id == 1
+    assert snapshot.day == 8
+    assert snapshot.time_slot == "morning"
+    assert dict(snapshot.turn_positions) == {
+        1: "the_home",
+        2: "the_home",
+        3: "the_school",
+        4: OFFLINE,
+    }
+
+
 def test_snapshot_isolates_maps_and_player_intent(
     session_factory: sessionmaker[Session],
 ) -> None:

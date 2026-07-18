@@ -489,6 +489,16 @@ class SettlementService:
                 for turn in store.list_turns(world_id=world_id, branch_id=branch.id)
             )
 
+    def get_turn(self, turn_id: int) -> TurnHistoryRecord:
+        """成功终态按结算返回的主键读取与历史 API 完全相同的投影。"""
+
+        with self._session_factory() as session:
+            store = StoryStore(session)
+            turn = store.get_turn(turn_id)
+            if turn is None:
+                raise SettlementConflictError("成功轮次不存在")
+            return self._history_record(store, turn)
+
     @staticmethod
     def _history_record(
         store: StoryStore,

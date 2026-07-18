@@ -268,6 +268,57 @@ export interface paths {
         patch: operations["update_role_api_roles__role_id__patch"];
         trace?: never;
     };
+    "/api/turn-runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Run */
+        get: operations["get_run_api_turn_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/turn-runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Run */
+        post: operations["cancel_run_api_turn_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/turn-runs/{run_id}/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Run */
+        get: operations["stream_run_api_turn_runs__run_id__stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/worlds": {
         parameters: {
             query?: never;
@@ -400,6 +451,40 @@ export interface paths {
         get?: never;
         /** Replace Location Rules */
         put: operations["replace_location_rules_api_worlds__world_id__roles__role_id__location_rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/turn-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Run */
+        post: operations["create_run_api_worlds__world_id__turn_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{world_id}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Turns */
+        get: operations["list_turns_api_worlds__world_id__turns_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -729,6 +814,12 @@ export interface components {
             /** Remote Model */
             remote_model?: string | null;
         };
+        /**
+         * NodeKey
+         * @description 固定节点标识不复用配置层的 TaskKey，避免运行进度耦合配置存储。
+         * @enum {string}
+         */
+        NodeKey: "location_simulation" | "attribute_memory_analysis";
         /** ProviderCreate */
         ProviderCreate: {
             /** Api Key */
@@ -866,6 +957,11 @@ export interface components {
             /** World Book */
             world_book?: string | null;
         };
+        /**
+         * RunStatus
+         * @enum {string}
+         */
+        RunStatus: "pending" | "running" | "succeeded" | "failed" | "cancelled";
         /** ShutdownResponse */
         ShutdownResponse: {
             /**
@@ -873,6 +969,20 @@ export interface components {
              * @constant
              */
             status: "shutting_down";
+        };
+        /** StateChangeResponse */
+        StateChangeResponse: {
+            /** Attribute Key */
+            attribute_key: string;
+            new_value: components["schemas"]["JsonValue"];
+            old_value: components["schemas"]["JsonValue"];
+            operand: components["schemas"]["JsonValue"];
+            /** Operation */
+            operation: string;
+            /** Reason */
+            reason: string;
+            /** Role Id */
+            role_id: number;
         };
         /**
          * StructuredOutputMode
@@ -951,6 +1061,96 @@ export interface components {
             output_tokens: number;
             /** Total Tokens */
             total_tokens: number;
+        };
+        /** @enum {string} */
+        TurnEventKind: "node_started" | "node_retrying" | "node_succeeded" | "map_completed" | "node_failed" | "run_succeeded" | "run_failed" | "run_cancelled";
+        /** TurnEventResponse */
+        TurnEventResponse: {
+            /** Event Id */
+            event_id: number;
+            /** Event Type */
+            event_type: string;
+            /** Fact */
+            fact: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /** Location Id */
+            location_id: string;
+        };
+        /** TurnResponse */
+        TurnResponse: {
+            /** Day */
+            day: number;
+            /** Events */
+            events: components["schemas"]["TurnEventResponse"][];
+            /** Player Intent */
+            player_intent: string;
+            /** Roles */
+            roles: components["schemas"]["TurnRoleResponse"][];
+            /** State Changes */
+            state_changes: components["schemas"]["StateChangeResponse"][];
+            /** Time Slot */
+            time_slot: string;
+            /** Turn Id */
+            turn_id: number;
+        };
+        /** TurnRoleResponse */
+        TurnRoleResponse: {
+            /** Content */
+            content: string;
+            /** Offline */
+            offline: boolean;
+            /** Role Id */
+            role_id: number;
+        };
+        /** TurnRunCreate */
+        TurnRunCreate: {
+            /** Player Intent */
+            player_intent: string;
+        };
+        /** TurnRunCreated */
+        TurnRunCreated: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "pending";
+        };
+        /** TurnRunEventResponse */
+        TurnRunEventResponse: {
+            /** Attempt */
+            attempt: number | null;
+            /** Completed Maps */
+            completed_maps: number;
+            /** Elapsed Ms */
+            elapsed_ms: number;
+            /** Error */
+            error?: string | null;
+            kind: components["schemas"]["TurnEventKind"];
+            /** Location Id */
+            location_id: string | null;
+            /** Max Attempts */
+            max_attempts: number;
+            node: components["schemas"]["NodeKey"] | null;
+            /** Retrying */
+            retrying: boolean;
+            /** Run Id */
+            run_id: string;
+            /** Total Maps */
+            total_maps: number;
+            turn?: components["schemas"]["TurnResponse"] | null;
+        };
+        /** TurnRunStatusResponse */
+        TurnRunStatusResponse: {
+            /** Error */
+            error?: string | null;
+            /** Run Id */
+            run_id: string;
+            status: components["schemas"]["RunStatus"];
+            /** Turn Id */
+            turn_id?: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -1741,6 +1941,99 @@ export interface operations {
             };
         };
     };
+    get_run_api_turn_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnRunStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_run_api_turn_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnRunStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_run_api_turn_runs__run_id__stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 完整 NDJSON 轮次进度事件流 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": components["schemas"]["TurnRunEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_worlds_api_worlds_get: {
         parameters: {
             query?: never;
@@ -2078,6 +2371,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LocationRuleResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_run_api_worlds__world_id__turn_runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TurnRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnRunCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_turns_api_worlds__world_id__turns_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                world_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnResponse"][];
                 };
             };
             /** @description Validation Error */

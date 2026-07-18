@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from app.ai.errors import AiErrorCategory, AiProviderError
 from app.workflow.context import AttributeMemoryContext, LocationSimulationContext
 from app.workflow.executor import MapChainExecutor
 from app.workflow.retry import AttemptObserver, AttemptResult
@@ -204,6 +205,38 @@ async def test_location_failure_skips_its_attribute_and_discards_all_outputs() -
         NodeKey.LOCATION_SIMULATION,
         1,
     )
+
+
+@pytest.mark.parametrize(
+    ("category", "expected"),
+    [
+        (AiErrorCategory.AUTHENTICATION, "AI 认证失败, 请检查 Provider API Key"),
+        (AiErrorCategory.NETWORK, "无法连接 AI 服务, 请检查网络与 Provider 地址"),
+        (AiErrorCategory.INVALID_RESPONSE, "AI 返回内容多次无效, 请检查模型能力或任务设置"),
+    ],
+)
+async def test_known_provider_failures_expose_actionable_safe_errors(
+    category: AiErrorCategory,
+    expected: str,
+) -> None:
+    invoker = ControlledInvoker()
+    invoker.location_error["home"] = AiProviderError(
+        category=category,
+        message="Authorization: Bearer secret-provider-key",
+        retryable=category is not AiErrorCategory.AUTHENTICATION,
+    )
+    executor = MapChainExecutor(invoker, build_attribute_context=_attribute_context)
+    run = TurnRun.create((_location("home"),))
+    task = asyncio.create_task(executor.execute(run))
+
+    await _wait(invoker.location_started_event("home"))
+    invoker.location_release["home"].set()
+    await task
+
+    assert run.status is RunStatus.FAILED
+    assert run.error == expected
+    assert run.map_runs["home"].safe_error == expected
+    assert "secret-provider-key" not in " ".join(event.error or "" for event in run.events)
 
 
 @pytest.mark.asyncio

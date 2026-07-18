@@ -11,7 +11,7 @@ from app.config import AppConfig
 from app.db.migrations import upgrade_database
 from app.db.session import create_session_factory, create_sqlite_engine
 from app.story.models import StateChange, Turn, TurnEvent, TurnStory
-from app.story.service import OFFLINE_STORY_CONTENT, SettlementService
+from app.story.service import OFFLINE_STORY_CONTENT, SettlementConflictError, SettlementService
 from app.story.store import StoryStore
 from app.world.models import World, WorldBranch, WorldRoleState
 
@@ -175,6 +175,19 @@ def test_history_is_newest_first_and_roles_are_player_then_stable_role_id(
     assert newest.state_changes[0].new_value == "振奋"
     assert history[1].roles[0].content == "主角纪事 1"
     assert history[1].events[0].fact == {"summary": "事件 1"}
+
+
+def test_single_turn_projection_uses_the_same_complete_history_boundary(
+    history_factory: sessionmaker[Session],
+) -> None:
+    service = SettlementService(history_factory, clock=lambda: NOW)
+
+    turn = service.get_turn(1)
+
+    assert turn.turn_id == 1
+    assert [role.role_id for role in turn.roles] == [10, 2, 30]
+    with pytest.raises(SettlementConflictError, match="成功轮次不存在"):
+        service.get_turn(999)
 
 
 def test_recent_five_effective_turns_only_count_turn_story(

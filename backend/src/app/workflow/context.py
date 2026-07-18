@@ -216,6 +216,43 @@ class ContextBuilder:
     def __init__(self, session_factory: sessionmaker[Session]) -> None:
         self._session_factory = session_factory
 
+    def build_current_turn_snapshot(
+        self,
+        *,
+        world_id: int,
+        player_intent: str,
+    ) -> TurnContextSnapshot:
+        """从世界唯一位置裁决读取启动事实，再由同一快照入口完成竞态复验。"""
+
+        with self._session_factory() as session:
+            store = WorldStore(session)
+            world = store.get_world(world_id)
+            if world is None or world.active_branch_id is None:
+                raise ContextBuildError("世界或活动分支不存在")
+            branch = store.get_world_branch(world_id, world.active_branch_id)
+            if branch is None:
+                raise ContextBuildError("世界或活动分支不存在")
+            presences = resolve_world_presences(
+                store,
+                world_id=world_id,
+                day=branch.day,
+                time_slot=branch.time_slot,
+                player_location_id=branch.current_location_id,
+            )
+            branch_id = branch.id
+            day = branch.day
+            time_slot = branch.time_slot
+
+        # 第二个短 Session 会重做位置裁决和全部版本校验，竞态只会拒绝启动。
+        return self.build_turn_snapshot(
+            world_id=world_id,
+            branch_id=branch_id,
+            day=day,
+            time_slot=time_slot,
+            player_intent=player_intent,
+            presences=presences,
+        )
+
     def build_turn_snapshot(
         self,
         *,

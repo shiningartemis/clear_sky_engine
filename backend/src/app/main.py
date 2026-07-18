@@ -20,6 +20,7 @@ from app.api.assets import create_asset_router
 from app.api.health import create_health_router
 from app.api.providers import create_provider_router
 from app.api.roles import create_role_router
+from app.api.turns import create_turn_router
 from app.api.worlds import create_world_router
 from app.character.service import RoleService
 from app.config import AppConfig
@@ -31,6 +32,7 @@ from app.security import LocalSecurity, LocalSecurityMiddleware
 from app.static_site import configure_static_site
 from app.story.service import SettlementService
 from app.workflow.ai_tasks import TaskInvoker
+from app.workflow.context import ContextBuilder
 from app.workflow.executor import MapChainExecutor
 from app.workflow.manager import TurnRunManager
 from app.world.service import WorldService
@@ -67,32 +69,46 @@ def create_app(
     ai_settings_service = AiSettingsService(session_factory)
     role_service = RoleService(session_factory, resource_catalog)
     world_service = WorldService(session_factory, resource_catalog)
+    settlement_service = SettlementService(session_factory)
+    context_builder = ContextBuilder(session_factory)
     provider_registry: ProviderRegistry | None = None
+    task_invoker: TaskInvoker | None = None
+    turn_run_manager = TurnRunManager(
+        lambda invoker, progress_sink: MapChainExecutor(
+            invoker,
+            progress_sink=progress_sink,
+        ),
+        settlement_handler=settlement_service.settle,
+    )
 
     def get_provider_registry() -> ProviderRegistry:
         if provider_registry is None:
             raise RuntimeError("ProviderRegistry 尚未初始化")
         return provider_registry
 
+    def get_task_invoker() -> TaskInvoker:
+        if task_invoker is None:
+            raise RuntimeError("TaskInvoker 尚未初始化")
+        return task_invoker
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        nonlocal provider_registry
+        nonlocal provider_registry, task_invoker
         # Provider 必须共享一个连接池；关闭应用时统一释放，禁止每请求创建客户端。
         async with httpx.AsyncClient() as http_client:
             app.state.http_client = http_client
             provider_registry = ProviderRegistry(
                 [OpenAICompatibleProvider(http_client), DeepSeekProvider(http_client)]
             )
-            app.state.task_invoker = TaskInvoker(ai_settings_service, provider_registry)
-            app.state.settlement_service = SettlementService(session_factory)
-            app.state.turn_run_manager = TurnRunManager(
-                lambda invoker: MapChainExecutor(invoker),
-                settlement_handler=app.state.settlement_service.settle,
-            )
+            task_invoker = TaskInvoker(ai_settings_service, provider_registry)
+            app.state.task_invoker = task_invoker
+            app.state.settlement_service = settlement_service
+            app.state.turn_run_manager = turn_run_manager
             try:
                 yield
             finally:
-                await app.state.turn_run_manager.shutdown()
+                await turn_run_manager.shutdown()
+                task_invoker = None
                 provider_registry = None
         engine.dispose()
 
@@ -108,6 +124,15 @@ def create_app(
     app.include_router(create_ai_task_router(ai_settings_service))
     app.include_router(create_role_router(role_service))
     app.include_router(create_world_router(world_service))
+    app.include_router(
+        create_turn_router(
+            world_service,
+            context_builder,
+            settlement_service,
+            turn_run_manager,
+            get_task_invoker,
+        )
+    )
     app.include_router(create_asset_router(resource_catalog))
     shutdown_token = security.shutdown_token if security else SecretStr(secrets.token_urlsafe(32))
     app.include_router(create_application_router(shutdown_token, shutdown_callback))

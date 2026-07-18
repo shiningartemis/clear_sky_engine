@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from time import monotonic
 from typing import Protocol
 
+from app.ai.errors import AiErrorCategory, AiProviderError
 from app.workflow.context import (
     AttributeMemoryContext,
     ContextBuilder,
@@ -47,6 +48,26 @@ type ProgressSink = Callable[[ProgressEvent], Awaitable[None]]
 type Clock = Callable[[], float]
 
 
+_SAFE_AI_ERRORS: dict[AiErrorCategory, str] = {
+    AiErrorCategory.INVALID_REQUEST: "AI 请求无效, 请检查模型与任务设置",
+    AiErrorCategory.AUTHENTICATION: "AI 认证失败, 请检查 Provider API Key",
+    AiErrorCategory.PERMISSION: "AI 权限不足, 请检查模型访问权限",
+    AiErrorCategory.INSUFFICIENT_BALANCE: "AI 余额不足, 请检查 Provider 账户",
+    AiErrorCategory.RATE_LIMITED: "AI 服务持续限流, 请稍后重试",
+    AiErrorCategory.TIMEOUT: "AI 服务多次超时, 请稍后重试或调整任务超时",
+    AiErrorCategory.NETWORK: "无法连接 AI 服务, 请检查网络与 Provider 地址",
+    AiErrorCategory.UNAVAILABLE: "AI 服务暂不可用, 请稍后重试",
+    AiErrorCategory.INVALID_RESPONSE: "AI 返回内容多次无效, 请检查模型能力或任务设置",
+    AiErrorCategory.CANCELLED: "AI 任务已取消",
+}
+
+
+def _safe_ai_error(error: AiProviderError) -> str:
+    """只按受控分类生成操作提示，绝不转发厂商正文或异常链。"""
+
+    return _SAFE_AI_ERRORS[error.category]
+
+
 class MapChainExecutor:
     """地图间共享限流并发，单地图只在地点节点成功后才进入属性节点。"""
 
@@ -81,7 +102,11 @@ class MapChainExecutor:
             run.cancel()
         except BaseException:
             # 原始异常可能包含厂商或网络上下文，运行状态只暴露可操作的安全信息。
-            run.fail("AI 任务执行失败")
+            safe_error = next(
+                (item.safe_error for item in run.map_runs.values() if item.safe_error is not None),
+                "AI 任务执行失败",
+            )
+            run.fail(safe_error)
         else:
             run.succeed()
 
@@ -163,10 +188,12 @@ class MapChainExecutor:
             )
         except asyncio.CancelledError:
             raise
-        except BaseException:
+        except BaseException as error:
             map_run.status = RunStatus.FAILED
             map_run.failed_node = current_node
-            map_run.safe_error = "AI 任务执行失败"
+            map_run.safe_error = (
+                _safe_ai_error(error) if isinstance(error, AiProviderError) else "AI 任务执行失败"
+            )
             await self._emit(
                 run,
                 "node_failed",
@@ -213,8 +240,6 @@ class MapChainExecutor:
             return
         error = run.error if run.status is RunStatus.FAILED else None
         started = run.started_at
-        if started is None:
-            raise RuntimeError("运行未记录起始时间")
         event = ProgressEvent(
             run_id=run.run_id,
             kind=terminal_kind(run.status),
@@ -225,7 +250,8 @@ class MapChainExecutor:
             retrying=False,
             completed_maps=run.completed_maps,
             total_maps=run.total_maps,
-            elapsed_ms=max(0, int((self._clock() - started) * 1000)),
+            # 未被 stream 领取的 pending 运行也必须产生可订阅的取消终态。
+            elapsed_ms=(0 if started is None else max(0, int((self._clock() - started) * 1000))),
             error=error,
         )
         run.events.append(event)

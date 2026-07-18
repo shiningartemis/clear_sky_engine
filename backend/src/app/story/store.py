@@ -72,6 +72,9 @@ class StoryStore:
     def add_state_change(self, change: StateChange) -> None:
         self._session.add(change)
 
+    def get_turn(self, turn_id: int) -> Turn | None:
+        return self._session.get(Turn, turn_id)
+
     def list_turns(self, *, world_id: int, branch_id: int) -> tuple[Turn, ...]:
         """完整历史按最新轮次优先返回，不分页也不裁剪旧轮次。"""
 
