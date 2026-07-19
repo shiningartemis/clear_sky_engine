@@ -31,7 +31,7 @@
 
 ## 2. 当前状态
 
-- 当前执行点：任务 9——轮次 API、NDJSON 与断线取消已完成；任务 10 尚未开始。
+- 当前执行点：任务 12——确定性的完整纵向集成回归已完成；任务 13 尚未开始。
 - 任务 1 开始基线提交：`7cf00d2 docs: define merged phase 4 and 5 implementation plan`。
 - [x] 阶段 1：工程、本地运行、安全启动器、检查脚本和 onedir 构建基线完成；干净 Windows 11 x64 仍作为最终发布门禁保留。
 - [x] 阶段 2：Provider/Model 管理、OpenAI-compatible、DeepSeek、普通/流式/JSON/Tool Calls 和真实 API 验证完成。
@@ -719,11 +719,11 @@ Reducer 维护唯一活动 run、地图节点进度、elapsed、终态和原始�
 
 **Steps**
 
-- [ ] 先写 NDJSON 所有分块边界、错误和终态去重测试，以及 reducer 成功/失败/取消/重试状态测试。
-- [ ] 先写 App 导航锁和卸载 Abort 测试，确认新模块缺失而失败。
-- [ ] 实现客户端、type guards、reducer 和最小 Context；不引入状态库。
-- [ ] 运行聚焦 Vitest、Biome、TypeScript、Vite build 和 `./scripts/check.ps1`。
-- [ ] 更新本文件并提交 `feat: add turn streaming client state`。
+- [x] 先写 NDJSON 所有分块边界、错误和终态去重测试，以及 reducer 成功/失败/取消/重试状态测试。
+- [x] 先写 App 导航锁和卸载 Abort 测试，确认新模块缺失而失败。
+- [x] 实现客户端、type guards、reducer 和最小 Context；不引入状态库。
+- [x] 运行聚焦 Vitest、Biome、TypeScript、Vite build 和 `./scripts/check.ps1`。
+- [x] 更新本文件；按用户当前明确要求保留未提交状态，不创建任务提交。
 
 **Expected:** 网络流再碎也只产生完整事件；前端不伪造世界事实；断线能闭合取消。
 
@@ -757,10 +757,10 @@ Reducer 维护唯一活动 run、地图节点进度、elapsed、终态和原始�
 
 **Steps**
 
-- [ ] 先写允许缺席目标意图、提交锁、取消、失败保留、成功清空/滚动、最新展开/旧轮折叠、全部角色列表、offline 说明和无多余历史控制测试。
-- [ ] 写 GameBridge 回归：活动轮次期间键盘/鼠标移动被拒绝，结束后恢复；监听器始终清理。
-- [ ] 运行聚焦测试确认失败后实现组件和 CSS Modules；提供 loading/empty/error/disabled/retry 状态。
-- [ ] 运行前端聚焦检查和 `./scripts/check.ps1`，更新本文件并提交 `feat: complete playable turn interface`。
+- [x] 先写允许缺席目标意图、提交锁、取消、失败保留、成功清空/滚动、最新展开/旧轮折叠、全部角色列表、offline 说明和无多余历史控制测试。
+- [x] 写 GameBridge 回归：活动轮次期间键盘/鼠标移动被拒绝，结束后恢复；监听器始终清理。
+- [x] 运行聚焦测试确认失败后实现组件和 CSS Modules；提供 loading/empty/error/disabled/retry 状态。
+- [x] 运行前端聚焦检查和 `./scripts/check.ps1` 并更新本文件；按用户当前明确要求保留未提交状态。
 
 **Expected:** 用户在一个游戏主界面完成移动、意图、等待、阅读和下一轮；没有独立历史页、分支或快照控制。
 
@@ -792,11 +792,11 @@ Reducer 维护唯一活动 run、地图节点进度、elapsed、终态和原始�
 
 **Steps**
 
-- [ ] 先实现上述集成测试夹具和断言，并确认至少一个完整闭环测试在执行器/结算/API尚未接好时失败。
-- [ ] 只修复集成暴露出的最低公共层问题，不在测试里放宽不变量或吞错。
-- [ ] 运行 `uv run pytest backend/tests/workflow backend/tests/story backend/tests/world/test_world_api.py -q`。
-- [ ] 运行 `npm --prefix frontend run test -- --run` 和 `./scripts/check.ps1`。
-- [ ] 更新验证记录并提交 `test: cover merged turn loop integration`。
+- [x] 先实现上述集成测试夹具和断言，并确认至少一个完整闭环测试在执行器/结算/API 尚未接好时失败。
+- [x] 只修复集成暴露出的最低公共层问题，不在测试里放宽不变量或吞错。
+- [x] 运行 `uv run pytest backend/tests/workflow backend/tests/story backend/tests/world/test_world_api.py -q`。
+- [x] 运行 `npm --prefix frontend run test -- --run` 和 `./scripts/check.ps1`。
+- [x] 更新验证记录；按用户当前明确要求保留未提交状态，不创建任务提交。
 
 **Expected:** 默认检查完全离线、快速、可复现，并能证明并发、隔离、重试和原子性；它不能替代任务 13。
 
@@ -921,6 +921,9 @@ npm --prefix frontend run test:e2e:live
 | 2026-07-17 | 任务 5 | RED：聚焦 pytest 因缺少 `app.workflow.schemas`、`app.workflow.context` 且事件来源仍要求整数而收集失败；补充快照 RED `2 failed, 3 passed`；GREEN：聚焦 pytest、Ruff、Pyright、`scripts/check.ps1`、diff 自审 | 聚焦 `54 passed`；完整检查后端 `245 passed, 6 deselected`、前端 `140 passed`，Ruff/Pyright/Biome/TypeScript/OpenAPI 漂移检查/Vite build 全部通过；仅既有 Vite 大包警告；未改 Provider 传输，未运行付费真实 AI 测试；正式独立审查由控制器执行 |
 | 2026-07-17 | 任务 5 审查修复 | RED：逐角色片段、共享事件知识行隔离、深冻结和固定 Prompt 回归 `3 failed, 4 passed`；GREEN：任务 5 聚焦 pytest、Ruff、Pyright、`scripts/check.ps1`、暂存范围审计 | 聚焦 `56 passed`；完整检查后端 `247 passed, 6 deselected`、前端 `140 passed`；属性/记忆上下文无顶层全量事件，每个角色仅携带自身纪事、可知事件及自身知识行，地点输出全部转换为独立深冻结值；删除临时报告，验证事实只保留在本文件；仅既有 Vite 大包警告 |
 | 2026-07-18 | 任务 9 | RED→GREEN：轮次 API、Manager 生命周期、原始 ASGI 早期断线、受控 fake executor；`uv run pytest ... -q`、`scripts/generate-api.ps1`、`scripts/check.ps1`、独立复审 | 聚焦 `55 passed`；完整检查后端 `333 passed, 6 deselected`、前端 `140 passed`；静态检查、OpenAPI 漂移和生产构建全部通过；复审 GO、无 Critical/Important；仅既有 Vite 大包警告；真实 AI/付费 Playwright 属后续任务，未运行 |
+| 2026-07-18 | 任务 10 | RED：新流客户端/reducer 模块缺失、导航守卫未导出；复审后截断 EOF、路由绕过与冻结意图回归共 `8 failed`；GREEN：`npm --prefix frontend run test -- --run src/api/turns.test.ts src/features/game/turnRunReducer.test.ts src/app/App.test.tsx`、`scripts/check.ps1`、两轮独立复审 | 聚焦 `25 passed`；完整检查后端 `333 passed, 6 deselected`、前端 `159 passed`，OpenAPI 漂移、Ruff、Pyright、Biome、TypeScript 与 Vite build 全部通过；最终复审规格与质量均通过，无 Critical/Important/Minor；仅既有 Vite 大包警告；真实 AI/付费 Playwright 属后续任务，未运行；按用户要求未提交 |
+| 2026-07-18 | 任务 11 | RED：缺少进度/历史组件、GameBridge 输入锁和 GamePage run 编排；多轮复审补出 run 清理、取消权威状态、历史到达顺序、成功终态丢失恢复、旧 run 副作用隔离、cancel 已成功但 stream 丢失和跨世界参数复用回归；GREEN：前端聚焦、`scripts/check.ps1`、全前端门禁、独立复审；Product Design 桌面端与 390px 窄屏真实 Chromium 截图审计 | 最终任务 10/11 聚焦 `52 passed`，全前端 `186 passed`；完整检查后端 `341 passed, 6 deselected`，前端 Biome `58 files`、TypeScript、生产构建全部通过；cancel 权威成功现按 turn_id 同步历史并释放锁，world_id 变化会重建页面异步生命周期；浏览器审计确认核心交互、视觉层级、可读性与窄屏布局正常；仅既有 Vite 大包警告；真实 AI 属任务 13；按用户要求未提交 |
+| 2026-07-19 | 任务 12 | RED→GREEN：新增迁移后 SQLite + ContextBuilder + fake Provider + MapChainExecutor/TurnRunManager + SettlementService + 历史 DTO 的两轮完整链路，以及失败原子性和世界引用回归；最终复审后再补真实 `create_app` + ASGITransport 的 POST create → NDJSON success → history/game-view 同一结算链；运行任务聚焦、任务指定 pytest 组合、Ruff、Pyright、`scripts/check.ps1`、真实 Chromium 阶段 3 UI 回归及独立复审 | 新增及世界 API 聚焦 `27 passed`，任务指定组合 `135 passed`；完整检查后端 `341 passed, 6 deselected`、前端 `186 passed`，OpenAPI 漂移、Ruff、Pyright、Biome、TypeScript 与 Vite build 全部通过；真实 Chromium UI 回归 `1 passed`；最终审查的三项 Important 均已用 RED→GREEN 修复，现无已知 Critical/Important；仅既有 Vite 大包警告；真实 AI 付费闭环属于任务 13，未运行；按用户要求未提交 |
 
 后续每个任务在完成提交前追加一行，至少记录日期、精确命令、pass/fail、测试数量或关键证据、未验证项。
 

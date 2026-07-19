@@ -11,6 +11,10 @@ import { RoleLibraryPage } from "../features/roles/RoleLibraryPage";
 import { WorldListPage } from "../features/worlds/WorldListPage";
 import { WorldRolesPage } from "../features/worlds/WorldRolesPage";
 import styles from "./App.module.css";
+import {
+  TurnRunNavigationGuard,
+  TurnRunNavigationProvider,
+} from "./TurnRunContext";
 
 type HealthLoader = (signal?: AbortSignal) => Promise<HealthResponse>;
 
@@ -103,25 +107,29 @@ export function App({
 }: AppProps) {
   return (
     <HealthBootstrap loadHealth={loadHealth}>
-      <Routes>
-        <Route
-          path="/"
-          element={<WorldListPage api={worldsApi} roleApi={rolesApi} />}
-        />
-        <Route path="/roles" element={<RoleLibraryPage api={rolesApi} />} />
-        <Route
-          path="/worlds/:worldId/roles"
-          element={<WorldRolesPage api={worldsApi} roleApi={rolesApi} />}
-        />
-        <Route
-          path="/worlds/:worldId/game"
-          element={<GamePage api={worldsApi} />}
-        />
-        <Route
-          path="/settings/ai"
-          element={<AiSettingsPage api={settingsApi} />}
-        />
-      </Routes>
+      <TurnRunNavigationProvider>
+        <TurnRunNavigationGuard>
+          <Routes>
+            <Route
+              path="/"
+              element={<WorldListPage api={worldsApi} roleApi={rolesApi} />}
+            />
+            <Route path="/roles" element={<RoleLibraryPage api={rolesApi} />} />
+            <Route
+              path="/worlds/:worldId/roles"
+              element={<WorldRolesPage api={worldsApi} roleApi={rolesApi} />}
+            />
+            <Route
+              path="/worlds/:worldId/game"
+              element={<GamePage api={worldsApi} />}
+            />
+            <Route
+              path="/settings/ai"
+              element={<AiSettingsPage api={settingsApi} />}
+            />
+          </Routes>
+        </TurnRunNavigationGuard>
+      </TurnRunNavigationProvider>
     </HealthBootstrap>
   );
 }

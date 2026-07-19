@@ -41,7 +41,8 @@
 }
 
 .statusPanel button,
-.mapButton {
+.mapButton,
+.turnWorkspace button {
   min-height: 40px;
   padding: 9px 18px;
   border: 1px solid rgb(143 211 255 / 38%);
@@ -54,9 +55,18 @@
 }
 
 .statusPanel button:focus-visible,
-.mapButton:focus-visible {
+.mapButton:focus-visible,
+.turnWorkspace button:focus-visible,
+.turnWorkspace textarea:focus-visible {
   outline: 3px solid #fff;
   outline-offset: 3px;
+}
+
+.mapButton:disabled,
+.turnWorkspace button:disabled,
+.turnWorkspace textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .mapButton {
@@ -78,6 +88,161 @@
   background: rgb(10 31 51 / 90%);
   color: #d9f2ff;
   font-weight: 700;
+}
+
+.turnWorkspace {
+  position: absolute;
+  z-index: 4;
+  top: 88px;
+  left: 28px;
+  width: min(430px, calc(100vw - 56px));
+  max-height: calc(100vh - 116px);
+  padding: 16px;
+  overflow-y: auto;
+  border: 1px solid rgb(159 204 235 / 24%);
+  border-radius: 18px;
+  background: rgb(7 19 34 / 82%);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(14px);
+  scrollbar-color: rgb(117 180 220 / 65%) transparent;
+}
+
+.intentPanel {
+  display: grid;
+  gap: 10px;
+}
+
+.intentPanel label {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.intentPanel p,
+.progressPanel p,
+.historyStatus p {
+  margin: 0;
+  color: #bfd2df;
+  line-height: 1.55;
+}
+
+.intentPanel textarea {
+  box-sizing: border-box;
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid rgb(143 211 255 / 38%);
+  border-radius: 12px;
+  background: rgb(4 13 24 / 86%);
+  color: #edf6ff;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.intentPanel button {
+  justify-self: end;
+}
+
+.progressPanel,
+.history,
+.historyStatus,
+.turnError {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(159 204 235 / 18%);
+}
+
+.progressHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progressHeader h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.progressList {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding-left: 22px;
+  color: #d8e8f3;
+  line-height: 1.45;
+}
+
+.progressSummary {
+  font-weight: 700;
+}
+
+.turnError {
+  color: #ffd0d4;
+  line-height: 1.5;
+}
+
+.turnError p {
+  margin-top: 0;
+}
+
+.historyStatus {
+  color: #bfd2df;
+}
+
+.historyStatus button {
+  margin-top: 10px;
+}
+
+.turnCard {
+  border: 1px solid rgb(159 204 235 / 20%);
+  border-radius: 12px;
+  background: rgb(6 18 31 / 72%);
+}
+
+.turnCard + .turnCard {
+  margin-top: 10px;
+}
+
+.turnCard summary {
+  padding: 12px;
+  color: #d9f2ff;
+  font-weight: 750;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.turnBody {
+  display: grid;
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.turnBody section {
+  padding-top: 12px;
+  border-top: 1px solid rgb(159 204 235 / 14%);
+}
+
+.turnBody h3,
+.turnBody p,
+.turnBody ul {
+  margin: 0;
+}
+
+.turnBody h3 {
+  margin-bottom: 7px;
+  color: #bce7ff;
+  font-size: 14px;
+}
+
+.turnBody p,
+.turnBody li {
+  color: #d8e8f3;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.turnBody ul {
+  padding-left: 20px;
 }
 
 .portraitStrip {
@@ -143,6 +308,10 @@
 }
 
 @media (max-width: 640px) {
+  .page {
+    overflow-y: auto;
+  }
+
   .statusPanel {
     top: 16px;
     left: 16px;
@@ -157,5 +326,22 @@
   .timePanel {
     top: 16px;
     right: 16px;
+  }
+
+  .turnWorkspace {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: auto;
+    max-height: none;
+    margin: 82px 12px 24px;
+  }
+
+  .portraitStrip {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    margin: 24px 12px;
   }
 }

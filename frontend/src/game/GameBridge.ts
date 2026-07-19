@@ -14,6 +14,7 @@ export class GameBridge implements GameBridgePort {
   private game: GameHandle | undefined;
   private container: HTMLElement | undefined;
   private latestState: GameViewState | undefined;
+  private inputLocked = false;
   private readonly listeners = new Set<(event: GameEvent) => void>();
 
   constructor(private readonly gameFactory: GameFactory) {}
@@ -24,6 +25,8 @@ export class GameBridge implements GameBridgePort {
     // React 只管理容器生命周期；Phaser 场景与 Canvas 必须由桥接层统一销毁。
     this.container = container;
     this.game = this.gameFactory(container, (event) => {
+      // 活动轮次冻结了位置快照，任何 Phaser 键鼠事件都不能改变该快照对应的世界位置。
+      if (this.inputLocked) return;
       for (const listener of this.listeners) listener(event);
     });
     if (this.latestState) this.game.update(this.latestState);
@@ -32,6 +35,10 @@ export class GameBridge implements GameBridgePort {
   update(state: GameViewState): void {
     this.latestState = state;
     this.game?.update(state);
+  }
+
+  setInputLocked(locked: boolean): void {
+    this.inputLocked = locked;
   }
 
   subscribe(listener: (event: GameEvent) => void): () => void {
@@ -47,6 +54,7 @@ export class GameBridge implements GameBridgePort {
     // Phaser 的销毁可能延迟到内部事件循环；同步清空专用容器可避免 StrictMode 重挂载留下双 Canvas。
     this.container?.replaceChildren();
     this.container = undefined;
+    this.inputLocked = false;
     this.listeners.clear();
   }
 }

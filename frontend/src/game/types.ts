@@ -111,6 +111,7 @@ export function toGameViewState(response: GameViewResponse): GameViewState {
 export interface GameBridgePort {
   mount(container: HTMLElement): void;
   update(state: GameViewState): void;
+  setInputLocked(locked: boolean): void;
   subscribe(listener: (event: GameEvent) => void): () => void;
   destroy(): void;
 }

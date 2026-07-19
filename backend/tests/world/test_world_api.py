@@ -137,6 +137,56 @@ async def test_create_world_is_atomic_and_uses_system_defaults(tmp_path: Path) -
         assert refreshed["referenced_world_ids"] == [world["id"]]
 
 
+async def test_world_membership_only_changes_role_references(tmp_path: Path) -> None:
+    """创建世界和引入 NPC 只能新增引用，不能暗改全局角色主记录。"""
+
+    async with phase3_client(
+        tmp_path,
+        character_assets={"天": "jpg", "莫莉莉": "png"},
+    ) as client:
+        protagonist = await _create_role(
+            client,
+            attributes=[_attribute("level", "integer", 7)],
+        )
+        npc = await _create_role(
+            client,
+            "莫莉莉",
+            attributes=[_attribute("mood", "string", "平静")],
+        )
+        before = (await client.get("/api/roles")).json()
+
+        created = await client.post(
+            "/api/worlds",
+            json=_world_payload(_int_field(protagonist, "id")),
+        )
+        assert created.status_code == 201, created.text
+        world_id = created.json()["id"]
+        added = await client.post(
+            f"/api/worlds/{world_id}/roles",
+            json={"role_id": _int_field(npc, "id")},
+        )
+        assert added.status_code == 201, added.text
+
+        after = (await client.get("/api/roles")).json()
+        assert len(after) == len(before) == 2
+        before_by_id = {item["id"]: item for item in before}
+        after_by_id = {item["id"]: item for item in after}
+        assert set(after_by_id) == set(before_by_id)
+        for role_id, original in before_by_id.items():
+            refreshed = after_by_id[role_id]
+            for field in (
+                "id",
+                "name",
+                "persona",
+                "system_prompt",
+                "world_book",
+                "attributes",
+                "version",
+            ):
+                assert refreshed[field] == original[field]
+            assert refreshed["referenced_world_ids"] == [world_id]
+
+
 async def test_same_existing_role_can_be_protagonist_in_multiple_worlds(tmp_path: Path) -> None:
     async with phase3_client(tmp_path, character_assets={"天": "jpg"}) as client:
         protagonist = await _create_role(client)

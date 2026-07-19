@@ -84,6 +84,31 @@ describe("GameBridge", () => {
     expect(second).toHaveBeenCalledTimes(2);
   });
 
+  it("活动轮次拒绝 Phaser 键鼠事件，结束后恢复并保持监听清理", () => {
+    let emit: ((event: GameEvent) => void) | undefined;
+    const factory = vi.fn<GameFactory>((_container, gameEmit) => {
+      emit = gameEmit;
+      return { destroy: vi.fn(), update: vi.fn() };
+    });
+    const listener = vi.fn();
+    const bridge = new GameBridge(factory);
+    const unsubscribe = bridge.subscribe(listener);
+    bridge.mount(document.createElement("div"));
+
+    bridge.setInputLocked(true);
+    emit?.({ type: "select_location", locationId: "the_school" });
+    emit?.({ type: "enter_location", locationId: "the_school" });
+    expect(listener).not.toHaveBeenCalled();
+
+    bridge.setInputLocked(false);
+    emit?.({ type: "select_location", locationId: "the_school" });
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    emit?.({ type: "return_to_the_world_map" });
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
   it("destroys the Phaser game and remains safe when called twice", () => {
     const destroy = vi.fn();
     const factory = vi.fn<GameFactory>(() => ({ destroy, update: vi.fn() }));
